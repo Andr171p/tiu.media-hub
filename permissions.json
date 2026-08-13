@@ -1,0 +1,12 @@
+[
+  {
+    "resource": "task",
+    "action": "create",
+    "description": "Создать задачу"
+  },
+  {
+    "resource": "task",
+    "action": "update",
+    "description": "Редактировать задачу"
+  }
+]
