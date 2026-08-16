@@ -58,3 +58,28 @@ Temporary = OFF.
 ```
 
 Выдать пользователю роль - `user`
+
+
+## Как получить access token для пользователя
+
+```bash
+export $(grep -v '^#' .env | xargs) && \
+curl -X POST \
+  "http://localhost:8081/realms/tiu-media-hub/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=$KEYCLOAK_CLIENT_ID" \
+  -d "client_secret=$KEYCLOAK_CLIENT_SECRET" \
+  -d "username=test" \
+  -d "password=test-password" \
+  -d "grant_type=password"
+```
+
+Ожидаемый ответ
+
+```bash
+{
+  "access_token": "eyJ...",
+  "expires_in": 300,
+  "token_type": "Bearer"
+}
+```

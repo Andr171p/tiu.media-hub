@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from src.core.assets.schemas import AssetCreate, AssetVersionUpload, AssetVersionUploadResponse
-from src.database.dependencies import DBSession
+from src.services.database import DBSession
 from src.services.assets.crud import crud as asset_crud
 
 router = APIRouter(prefix="/assets", tags=["Assets"])

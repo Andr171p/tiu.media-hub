@@ -7,8 +7,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.core.common.models import Base
-
-from .config import PostgresConfig
+from src.core.database.config import PostgresConfig
 
 config = PostgresConfig()
 
