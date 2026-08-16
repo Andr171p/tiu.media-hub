@@ -1,12 +1,9 @@
-services:
-  cdn-node:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - cdn_cache:/var/cache/nginx
-    restart: always
+name: tiu-media-hub
 
-volumes:
-  cdn_cache:
+include:
+  - ./docker/minio.yml
+  - ./docker/keycloak.yml
+
+networks:
+  default:
+    name: tiu-media-hub-network

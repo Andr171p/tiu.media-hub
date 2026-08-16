@@ -22,10 +22,16 @@ class AssetType(StrEnum):
 
 
 class AssetStatus(StrEnum):
+    PENDING = "pending"
     PROCESSING = "processing"
     READY = "ready"
     ARCHIVED = "archived"
     DELETED = "deleted"
+
+
+class AssetVersionStatus(StrEnum):
+    UPLOADING = "uploading"
+    FAILED = "failed"
 
 
 class DerivativeType(StrEnum):
@@ -40,10 +46,13 @@ class AssetVersion(Base):
     __tablename__ = "asset_versions"
 
     asset: Mapped[Asset] = relationship(back_populates="versions")
+    derivatives: Mapped[list[AssetDerivative]] = relationship(
+        back_populates="asset_version", cascade="all, delete-orphan",
+    )
 
     asset_id: Mapped[UUID] = mapped_column(ForeignKey("assets.id"), unique=False)
     version: Mapped[int]
-    creator_id: Mapped[UUID]
+    author_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
     storage_key: Mapped[str]
     original_filename: Mapped[str]
@@ -67,6 +76,7 @@ class AssetDerivative(Base):
     asset_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("asset_versions.id"), unique=False,
     )
+    asset_version: Mapped[AssetVersion] = relationship(back_populates="derivatives")
 
     type_: Mapped[DerivativeType]
     storage_key: Mapped[StrUnique]
@@ -90,11 +100,15 @@ class Asset(Base):
     description: Mapped[TextNull]
 
     type_: Mapped[AssetType]
-    status: Mapped[AssetStatus]
+    status: Mapped[AssetStatus] = mapped_column(default=AssetStatus.PENDING)
 
-    creator_id: Mapped[UUID]
+    author_id: Mapped[UUID | None] = mapped_column(nullable=True)
     current_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("asset_versions.id"), nullable=True,
     )
 
-    versions: Mapped[list[AssetVersion]] = relationship(back_populates="asset")
+    versions: Mapped[list[AssetVersion]] = relationship(
+        back_populates="asset",
+        foreign_keys="AssetVersion.asset_id",
+        cascade="all, delete-orphan",
+    )

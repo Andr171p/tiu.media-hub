@@ -1,0 +1,67 @@
+{
+  "realm": "tiu-media-hub",
+  "enabled": true,
+  "displayName": "TIU Media Hub",
+
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Regular Media Hub user"
+      },
+      {
+        "name": "admin",
+        "description": "Media Hub administrator"
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "tiu-media-hub-web",
+      "name": "TIU Media Hub Web",
+      "enabled": true,
+
+      "protocol": "openid-connect",
+
+      "publicClient": true,
+      "clientAuthenticatorType": "none",
+
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+
+    {
+      "clientId": "tiu-media-hub-api",
+      "name": "TIU Media Hub API",
+      "enabled": true,
+
+      "protocol": "openid-connect",
+
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ]
+}

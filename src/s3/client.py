@@ -31,7 +31,7 @@ class S3Client:
         async with self.get_client() as client:
             await client.delete_object(Bucket=self._config.bucket, Key=storage_key)
 
-    async def create_presigned_upload_url(
+    async def create_upload_url(
             self, storage_key: str, mime_type: str, expires_in: int = 3600
     ) -> str:
         async with self.get_client() as client:
@@ -46,7 +46,7 @@ class S3Client:
                 HttpMethod="PUT",
             )
 
-    async def create_presigned_download_url(self, storage_key: str, expires_in: int = 3600) -> str:
+    async def create_download_url(self, storage_key: str, expires_in: int = 3600) -> str:
         async with self.get_client() as client:
             return await client.generate_presigned_url(
                 "get_object",
@@ -55,7 +55,7 @@ class S3Client:
                 HttpMethod="GET",
             )
 
-    async def get_file_meta(self, storage_key: str) -> dict[str, Any]:
+    async def get_metadata(self, storage_key: str) -> dict[str, Any]:
         try:
             async with self.get_client() as client:
                 response = await client.head_object(Bucket=self._config.bucket, Key=storage_key)

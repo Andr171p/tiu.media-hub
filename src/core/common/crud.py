@@ -64,7 +64,6 @@ class Crud[
     def __init__(
             self,
             model: type[ModelT],
-            session: AsyncSession,
             *,
             create_wrapper: CreateWrapper[ModelT, CreateDTO, CreateOptionsT] | None = None,
             read_wrapper: ReadWrapper[ModelT, ReadOptionsT] | None = None,
@@ -72,21 +71,22 @@ class Crud[
             delete_wrapper: DeleteWrapper[ModelT, DeleteOptionsT] | None = None,
     ) -> None:
         self._model = model
-        self._session = session
 
         self._create_wrapper = create_wrapper
         self._read_wrapper = read_wrapper
         self._update_wrapper = update_wrapper
         self._delete_wrapper = delete_wrapper
 
-    async def create(self, dto: CreateDTO, options: CreateOptionsT | None = None) -> ModelT:
+    async def create(
+            self, session: AsyncSession, dto: CreateDTO, options: CreateOptionsT | None = None,
+    ) -> ModelT:
 
         async def _base_create(kwargs: dict[str, Any] | None = None) -> ModelT:
             values = {**dto.model_dump(), **(kwargs or {})}
             model = self._model(**values)
 
-            self._session.add(model)
-            await self._session.flush()
+            session.add(model)
+            await session.flush()
 
             return model
 
@@ -95,11 +95,16 @@ class Crud[
 
         return await _base_create()
 
-    async def read(self, uid: UUID, options: ReadOptionsT | None = None) -> ModelT | None:
+    async def read(
+            self,
+            session: AsyncSession,
+            uid: UUID,
+            options: ReadOptionsT | None = None,
+    ) -> ModelT | None:
 
         async def _base_read() -> ModelT | None:
             stmt = select(self._model).where(self._model.id == uid)
-            result = await self._session.execute(stmt)
+            result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
         if self._read_wrapper:
@@ -108,7 +113,11 @@ class Crud[
         return await _base_read()
 
     async def update(
-            self, model: ModelT, dto: UpdateDTO, options: UpdateOptionsT | None = None,
+            self,
+            session: AsyncSession,
+            model: ModelT,
+            dto: UpdateDTO,
+            options: UpdateOptionsT | None = None,
     ) -> ModelT:
 
         async def _base_update(kwargs: dict[str, Any] | None = None) -> ModelT:
@@ -117,7 +126,7 @@ class Crud[
             for field, value in values.items():
                 setattr(model, field, value)
 
-            await self._session.flush()
+            await session.flush()
             return model
 
         if self._update_wrapper:
@@ -125,11 +134,13 @@ class Crud[
 
         return await _base_update()
 
-    async def delete(self, model: ModelT, options: DeleteOptionsT | None = None) -> None:
+    async def delete(
+            self, session: AsyncSession, model: ModelT, options: DeleteOptionsT | None = None,
+    ) -> None:
 
         async def _base_delete() -> None:
             model.deleted_at = datetime.now(UTC)
-            await self._session.flush()
+            await session.flush()
 
         if self._delete_wrapper:
             await self._delete_wrapper(_base_delete(), model, options)
