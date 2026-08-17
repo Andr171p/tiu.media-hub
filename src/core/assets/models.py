@@ -31,7 +31,8 @@ class AssetStatus(StrEnum):
 
 class AssetVersionStatus(StrEnum):
     UPLOADING = "uploading"
-    FAILED = "failed"
+    PROCESSING = "processing"
+    READY = "ready"
 
 
 class DerivativeType(StrEnum):
@@ -53,6 +54,7 @@ class AssetVersion(Base):
     asset_id: Mapped[UUID] = mapped_column(ForeignKey("assets.id"), unique=False)
     version: Mapped[int]
     author_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    status: Mapped[AssetVersionStatus]
 
     storage_key: Mapped[str]
     original_filename: Mapped[str]
@@ -104,7 +106,7 @@ class Asset(Base):
 
     author_id: Mapped[UUID | None] = mapped_column(nullable=True)
     current_version_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("asset_versions.id"), nullable=True,
+        ForeignKey("asset_versions.id"), nullable=True, default=None,
     )
 
     versions: Mapped[list[AssetVersion]] = relationship(

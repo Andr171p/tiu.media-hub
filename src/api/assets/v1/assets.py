@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from src.core.assets.schemas import AssetCreate, AssetVersionUpload, AssetVersionUploadResponse
+from src.core.assets.schemas import AssetCreate, AssetVersionCreate, AssetVersionUploadResponse
 from src.services.assets.crud import crud as asset_crud
 from src.services.database import DBSession
 
@@ -24,7 +24,7 @@ async def create_asset(session: DBSession, dto: AssetCreate):
     response_model=AssetVersionUploadResponse,
     summary="Генерирует URL для direct upload"
 )
-async def upload_asset_version(dto: AssetVersionUpload) -> AssetVersionUploadResponse: ...
+async def upload_asset_version(dto: AssetVersionCreate) -> AssetVersionUploadResponse: ...
 
 
 @router.post(

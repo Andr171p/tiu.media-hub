@@ -143,7 +143,16 @@ class Crud[
             await session.flush()
 
         if self._delete_wrapper:
-            await self._delete_wrapper(_base_delete(), model, options)
+            await self._delete_wrapper(_base_delete, model, options)
             return
 
         await _base_delete()
+
+
+__all__ = [
+    "CreateWrapper",
+    "Crud",
+    "DeleteWrapper",
+    "ReadWrapper",
+    "UpdateWrapper",
+]

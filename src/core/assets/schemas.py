@@ -23,13 +23,23 @@ FilePathStr = Annotated[
     Field(
         pattern=r'^[^\\/:*?"<>|]+$',
         description="Корректное имя файла без запрещенных символов",
+        examples=["image.jpg"]
     ),
 ]
 
-FileSize = Annotated[NonNegativeInt, Field(description="Размер файла в байтах.")]
+FileSize = Annotated[
+    NonNegativeInt,
+    Field(description="Размер файла в байтах.", examples=[5242880]),
+]
 
 MimeType = Annotated[
-    str, Field(description="Mime тип файла.", examples=["image/png", "audio/mpeg"]),
+    str,
+    Field(
+        min_length=1,
+        max_length=255,
+        description="Mime тип файла.",
+        examples=["image/png", "audio/mpeg"]
+    ),
 ]
 
 # =================================================================================================
@@ -56,8 +66,114 @@ class VideoMeta(BaseModel):
 
 
 # =================================================================================================
+# API request DTOs
+# =================================================================================================
+
+
+class FileMeta(BaseModel):
+    """Метаданные файла полученные с клиента."""
+
+    filename: FilePathStr
+    mime_type: MimeType
+    size: FileSize
+
+
+class UploadInfo(BaseModel):
+    """Данные для прямой загрузки S3."""
+
+    url: HttpUrl = Field(description="Временный URL для прямой загрузки.")
+    method: Literal["PUT"] = Field(
+        default="PUT",
+        frozen=True,
+        description="HTTP метод для загрузки в S3.",
+    )
+    expires_in: NonNegativeInt = Field(description="Время жизни URL в секундах.")
+
+
+class AssetVersionUploadResponse(BaseModel):
+    """Данные для прямой загрузки версии медиа актива в S3."""
+
+    asset_id: UUID = Field(description="Уникальный идентификатор медиа актива.")
+    version_id: UUID = Field(description="Уникальный идентификатор версии.")
+    version: PositiveInt = Field(description="Номер текущей версии.")
+    status: AssetVersionStatus = Field(description="Статус загрузки версии.")
+
+    upload: UploadInfo = Field(description="Информация для загрузки актива.")
+
+
+class AssetCreate(BaseModel):
+    """DTO для создания записи медиа актива."""
+
+    title: str = Field(
+        min_length=1,
+        max_length=255,
+        description="Название медиа-актива.",
+        examples=["День открытых дверей 2026"],
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Описание и контекст медиа-актива.",
+    )
+    type_: AssetType = Field(description="Тип медиа актива (определяется системой).")
+
+
+class AssetUploadRequest(AssetCreate):
+    """Запрос на создание нового медиа-актива."""
+
+    title: str = Field(
+        min_length=1,
+        max_length=255,
+        description="Название медиа-актива.",
+        examples=["День открытых дверей 2026"],
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Описание и контекст медиа-актива.",
+    )
+    file: FileMeta = Field(description="Метаданные файла полученные с клиента.")
+
+
+class AssetUpdate(BaseModel):
+    """Запрос на изменение метаданных медиа-актива."""
+
+    title: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="Новое название медиа-актива.",
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Новое описание медиа-актива.",
+    )
+
+
+class AssetVersionCreate(BaseModel):
+    """DTO для создания версии медиа-актива."""
+
+    asset_id: UUID
+    version: PositiveInt
+
+    storage_key: str
+    original_filename: FilePathStr
+    mime_type: MimeType
+    size: FileSize
+
+    status: AssetVersionStatus = AssetVersionStatus.UPLOADING
+
+
+# =================================================================================================
 # Create & Update DTOs
 # =================================================================================================
+
+
+class AssetUpload(BaseModel):
+    filename: FilePathStr
+    mime_type: MimeType
+
 
 class AssetCreate(BaseModel):
     """Создание медиа актива."""
@@ -68,29 +184,22 @@ class AssetCreate(BaseModel):
     description: str | None = Field(None, description="Описание контекста.")
     type: AssetType = Field(description="Тип контента.")
 
-
-class AssetUpdate(BaseModel):
-    """Редактирование информации об медиа активе."""
-
-    title: str = Field(
-        description="Название медиа актива.", examples=["День открытых дверей 2026"],
-    )
-    description: str | None = Field(None, description="Описание контекста.")
+    upload: AssetUpload
 
 
-class AssetVersionUpload(BaseModel):
-    """Инициация процесса загрузки версии медиа актива."""
-
-    filename: FilePathStr
-    mime_type: MimeType
+class AssetVersionCreate(BaseModel):
+    asset_id: UUID
+    version: PositiveInt
+    author_id: UUID | None = None
+    storage_key: str
+    original_filename: FilePathStr
+    mime_type: str
+    size: NonNegativeInt
 
 
 # =================================================================================================
 # Response DTOs
 # =================================================================================================
-
-class AssetResponse(BaseModel):
-    """"""
 
 
 class AssetDerivativeResponse(BaseModel):
@@ -136,15 +245,3 @@ class AssetVersionResponse(BaseModel):
     derivatives: dict[DerivativeType, AssetDerivativeResponse] = Field(
         default_factory=dict, description="Производные от текущей версии.",
     )
-
-
-class AssetVersionUploadResponse(BaseModel):
-    """Данные для прямой загрузки версии медиа актива в S3."""
-
-    version_id: UUID = Field(description="Уникальный идентификатор версии.")
-    version: PositiveInt = Field(description="Номер текущей версии.")
-    status: AssetVersionStatus = Field(description="Статус загрузки версии.")
-
-    upload_url: HttpUrl = Field(description="Временный URL для прямой загрузки.")
-    method: Literal["PUT"] = Field(default="PUT", description="HTTP метод для загрузки в S3.")
-    expires_in: NonNegativeInt = Field(description="Время жизни URL в секундах.")
