@@ -12,7 +12,7 @@ from pydantic import (
     PositiveInt,
 )
 
-from .models import AssetType, AssetVersionStatus, DerivativeType
+from .models import AssetStatus, AssetType, AssetVersionStatus, DerivativeType
 
 # =================================================================================================
 # Custom pydantic annotations
@@ -149,6 +149,7 @@ class AssetUpdate(BaseModel):
         max_length=5000,
         description="Новое описание медиа-актива.",
     )
+    status: AssetStatus | None = Field(None, description="Статус медиа актива.")
 
 
 class AssetVersionCreate(BaseModel):
@@ -163,6 +164,13 @@ class AssetVersionCreate(BaseModel):
     size: FileSize
 
     status: AssetVersionStatus = AssetVersionStatus.UPLOADING
+
+
+class AssetVersionUpdate(BaseModel):
+    """Обновление состояния версии актива."""
+
+    status: AssetVersionStatus | None = Field(None, description="Статус загрузки версии.")
+    checksum: str | None = Field(None, description="Контрольная сумма (хеш).")
 
 
 # =================================================================================================

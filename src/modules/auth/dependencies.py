@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.core.auth.exceptions import AuthenticationError
 from src.core.auth.models import User
-from src.services.keycloak import keycloak_client
+from src.modules.keycloak import keycloak_client
 
 http_bearer = HTTPBearer(auto_error=False)
 

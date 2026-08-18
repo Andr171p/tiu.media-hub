@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from . import users
+from . import assets, users
 
 router = APIRouter(prefix="/v1")
 
+router.include_router(assets.router)
 router.include_router(users.router)
 
 __all__ = ["router"]

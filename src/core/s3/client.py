@@ -58,11 +58,6 @@ class S3Client:
     async def get_metadata(self, storage_key: str) -> dict[str, Any]:
         try:
             async with self.get_client() as client:
-                response = await client.head_object(Bucket=self._config.bucket, Key=storage_key)
-                return {
-                    "size": response["ContentLength"],
-                    "mime_type": response["ContentType"],
-                    "uploaded_at": response["LastModified"],
-                }
+                return await client.head_object(Bucket=self._config.bucket, Key=storage_key)
         except ClientError:
             raise NotFoundError(f"File not found by key - {storage_key}") from None

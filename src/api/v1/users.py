@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from src.core.auth.models import User
-from src.services.auth.dependencies import CurrentUser
+from src.modules.auth.dependencies import CurrentUser
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
