@@ -1,0 +1,11 @@
+# Temporal dynamic configuration for development (SQL visibility store)
+# See: https://docs.temporal.io/references/dynamic-configuration
+
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
+
+# Enable more detailed logging / development-friendly defaults if needed
+# frontend.enableClientVersionCheck:
+#   - value: false
+#     constraints: {}

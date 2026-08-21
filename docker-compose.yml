@@ -1,8 +1,9 @@
 name: tiu-media-hub
 
 include:
-  - ./docker/minio.yml
-  - ./docker/keycloak.yml
+  - docker/minio.docker-compose.yml
+  - docker/keycloak.docker-compose.yml
+  - docker/temporal.docker-compose.yml
 
 networks:
   default:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from src.core.assets.schemas import AssetCreate, AssetVersionCreate, AssetVersionUploadResponse
+from src.core.assets.schemas import AssetResponse, CreateAssetDTO
 from src.modules.assets.crud import asset_crud
 from src.modules.database import DBSession
 
@@ -10,27 +10,25 @@ router = APIRouter(prefix="/assets", tags=["Assets"])
 @router.post(
     path="",
     status_code=status.HTTP_201_CREATED,
-    response_model=...,
-    summary="Создать медиа актив"
+    summary="Создать медиа актив",
 )
-async def create_asset(session: DBSession, dto: AssetCreate):
+async def create_asset(session: DBSession, dto: CreateAssetDTO) -> AssetResponse:
     asset = await asset_crud.create(session, dto)
     await session.commit()
+    return AssetResponse.model_validate(asset)
 
 
 @router.post(
-    path="/{asset_id}/versions",
-    status_code=status.HTTP_201_CREATED,
-    response_model=AssetVersionUploadResponse,
-    summary="Генерирует URL для direct upload"
-)
-async def upload_asset_version(dto: AssetVersionCreate) -> AssetVersionUploadResponse: ...
-
-
-@router.post(
-    path="/{asset_id}/versions/{version_id}/complete",
+    path="/{asset_id}/uploads",
     status_code=status.HTTP_200_OK,
-    response_model=...,
-    summary="Подтверждение загрузки медиа актива"
+    summary="",
 )
-async def complete_asset_version_uploading(): ...
+async def upload_asset(): ...
+
+
+@router.post(
+    path="/{asset_id}/uploads/{upload_id}/complete",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="",
+)
+async def complete_asset_upload(): ...

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from enum import StrEnum
 from uuid import UUID
 
+from pydantic import BaseModel, Field, NonNegativeFloat
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,33 +12,25 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.core.common.models import Base
 from src.core.common.types import FloatNull, IntNull, StrUnique, TextNull
 
-
-class AssetType(StrEnum):
-    IMAGE = "image"
-    VIDEO = "video"
-    AUDIO = "audio"
-    DOCUMENT = "document"
-    OTHER = "other"
+from .enums import AssetStatus, AssetType, DerivativeType
 
 
-class AssetStatus(StrEnum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    READY = "ready"
-    ARCHIVED = "archived"
-    DELETED = "deleted"
+class ImageMeta(BaseModel):
+    """Метаданные изображения."""
+
+    camera: str | None = Field(None, description="Модель камеры.")
+    iso: int | None = Field(None, description="Время создания в ISO формате.")
+    aperture: str | None = Field(None, description="Диафрагма объектива.")
+    focal_length: str | None = Field(None, description="Фокусное расстояние.")
 
 
-class AssetVersionStatus(StrEnum):
-    UPLOADING = "uploading"
-    PROCESSING = "processing"
-    READY = "ready"
+class VideoMeta(BaseModel):
+    """Метаданные видео."""
 
-
-class DerivativeType(StrEnum):
-    THUMBNAIL = "thumbnail"
-    PREVIEW = "preview"
-    WATERMARKED = "watermarked"
+    codec: str | None = Field(None, description="Codec видео.", exclude=["AV1", "VP9 "])
+    fps: float | None = Field(None, description="Частота кадров в секунду.")
+    bitrate: int | None = Field(None, description="Битрейт исходного видео.")
+    duration: NonNegativeFloat | None = Field(None, description="Длительность в секундах.")
 
 
 class AssetVersion(Base):
@@ -54,7 +46,6 @@ class AssetVersion(Base):
     asset_id: Mapped[UUID] = mapped_column(ForeignKey("assets.id"), unique=False)
     version: Mapped[int]
     author_id: Mapped[UUID | None] = mapped_column(nullable=True)
-    status: Mapped[AssetVersionStatus]
 
     storage_key: Mapped[str]
     original_filename: Mapped[str]
@@ -101,7 +92,7 @@ class Asset(Base):
     title: Mapped[str]
     description: Mapped[TextNull]
 
-    type_: Mapped[AssetType]
+    type_: Mapped[AssetType | None] = mapped_column(nullable=True)
     status: Mapped[AssetStatus] = mapped_column(default=AssetStatus.PENDING)
 
     author_id: Mapped[UUID | None] = mapped_column(nullable=True)

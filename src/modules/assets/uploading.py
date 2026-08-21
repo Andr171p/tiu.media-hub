@@ -1,96 +1,34 @@
-import uuid
+from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.core.assets.models import AssetStatus, AssetVersionStatus
-from src.core.assets.schemas import (
-    AssetCreate,
-    AssetUpdate,
-    AssetUploadRequest,
-    AssetVersionCreate,
-    AssetVersionUpdate,
-    AssetVersionUploadResponse,
-    UploadInfo,
-)
-from src.core.assets.services import build_original_storage_key, resolve_asset_type
-from src.core.auth.models import User
+from src.consts import UPLOAD_URL_EXPIRES_IN
+from src.core.assets.helpers import build_upload_storage_key, generate_upload_id
+from src.core.assets.schemas import UploadFileDTO, UploadFileResponse, UploadInfo
 from src.modules.s3 import s3_client
 
-from .crud import asset_crud, version_crud
 
-UPLOAD_URL_EXPIRES = 3600
-
-
-async def init_upload(
-    session: AsyncSession, request: AssetUploadRequest, user: User,
-) -> AssetVersionUploadResponse:
-
-    version_id = uuid.uuid4()
-
-    asset = await asset_crud.create(
-        session,
-        dto=AssetCreate(
-            title=request.title,
-            description=request.description,
-            type_=resolve_asset_type(request.file.mime_type),
-        ),
-        options=user,
+async def init_upload(asset_id: UUID, dto: UploadFileDTO) -> UploadFileResponse:
+    upload_id = generate_upload_id(
+        asset_id=asset_id,
+        filename=dto.filename,
+        mime_type=dto.mime_type,
+        size=dto.size,
     )
-
-    storage_key = build_original_storage_key(asset_id=asset.id, version_id=version_id)
-    version = await version_crud.create(
-        session,
-        dto=AssetVersionCreate(
-            asset_id=asset.id,
-            version=1,
-            storage_key=storage_key,
-            original_filename=request.file.filename,
-            mime_type=request.file.mime_type,
-            size=request.file.size,
-        ),
+    storage_key = build_upload_storage_key(
+        asset_id=asset_id, upload_id=upload_id, filename=dto.filename,
     )
 
     upload_url = await s3_client.create_upload_url(
         storage_key=storage_key,
-        mime_type=request.file.mime_type,
-        expires_in=UPLOAD_URL_EXPIRES,
+        mime_type=dto.mime_type,
+        expires_in=UPLOAD_URL_EXPIRES_IN,
     )
 
-    await session.commit()
+    # Запуск Temporal workflow ...
 
-    return AssetVersionUploadResponse(
-        asset_id=asset.id,
-        version_id=version_id,
-        version=version.version,
-        status=version.status,
-        upload=UploadInfo(url=upload_url, expires_in=UPLOAD_URL_EXPIRES),
+    return UploadFileResponse(
+        uploadId=upload_id,
+        upload=UploadInfo(url=upload_url, expiresIn=UPLOAD_URL_EXPIRES_IN),
     )
 
 
-async def confirm_upload(
-        session: AsyncSession, asset_id: uuid.UUID, version_id: uuid.UUID,
-) -> ...:
-
-    if (version := await version_crud.read(session, version_id)) is None:
-        ...
-
-    if version.asset_id != asset_id:
-        ...
-
-    metadata = await s3_client.get_metadata(version.storage_key)
-
-    checksum = metadata.get("ETag", "").strip()
-    updated = await version_crud.update(
-        session, version,
-        dto=AssetVersionUpdate(
-            status=AssetVersionStatus.PROCESSING,
-            checksum=checksum,
-        ),
-    )
-
-    if (asset := await asset_crud.read(session, asset_id)) is None:
-        raise ...
-
-    await asset_crud.update(session, asset, dto=AssetUpdate(status=AssetStatus.PROCESSING))
-
-    await session.commit()
+async def confirm_upload(): ...

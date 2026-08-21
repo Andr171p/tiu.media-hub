@@ -19,3 +19,13 @@ class AppError(Exception):
             self.error_code = error_code
 
         super().__init__(message)
+
+
+class NotFoundError(AppError):
+    status_code = status.HTTP_404_NOT_FOUND
+    error_code = "NOT_FOUND_ERROR"
+
+
+class ConflictError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "CONFLICT_ERROR"

@@ -9,6 +9,7 @@ dependencies = [
     "fastapi[all]>=0.141.1",
     "pyjwt[crypto]>=2.13.0",
     "sqlalchemy>=2.0.52",
+    "temporalio>=1.31.0",
 ]
 
 [tool.ruff]
