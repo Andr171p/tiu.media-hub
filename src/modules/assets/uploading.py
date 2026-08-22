@@ -75,11 +75,10 @@ async def init_upload(
 
 async def confirm_upload(session: AsyncSession, asset_id: UUID, upload_id: UUID) -> AssetResponse:
 
-    if (asset := await asset_crud.read(session, asset_id)) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset not found by Id - {asset_id!r}.",
-        )
+    asset = await _get_asset_or_404(session, asset_id)
+
+    if asset.status != AssetStatus.PENDING:
+        return AssetResponse.model_validate(asset)
 
     dto = UpdateAssetDTO(status=AssetStatus.PROCESSING)
     updated = await asset_crud.update(session, asset, dto=dto)
