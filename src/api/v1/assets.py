@@ -20,9 +20,9 @@ router = APIRouter(prefix="/assets", tags=["Assets"])
     summary="Создать медиа актив",
 )
 async def create_asset(session: DBSession, dto: CreateAssetDTO) -> AssetResponse:
-    asset = await asset_crud.create(session, dto)
+    created = await asset_crud.create(session, dto)
     await session.commit()
-    return AssetResponse.model_validate(asset)
+    return AssetResponse.model_validate(created)
 
 
 @router.post(
