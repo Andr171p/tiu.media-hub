@@ -21,7 +21,7 @@ from .types import FilePathStr, FileSize, MimeType
 # =================================================================================================
 
 
-class UploadFileDTO(BaseModel):
+class UploadAssetDTO(BaseModel):
     """DTO для загрузки файла."""
 
     filename: FilePathStr
@@ -43,7 +43,7 @@ class UploadInfo(BaseModel):
     )
 
 
-class UploadFileResponse(BaseModel):
+class UploadAssetResponse(BaseModel):
     """Результат инициации загрузки файла."""
 
     upload_id: UUID = Field(alias="uploadId", description="Идентификатор потока загрузки файла.")
@@ -66,6 +66,13 @@ class CreateAssetDTO(BaseModel):
         max_length=5000,
         description="Описание и контекст медиа-актива.",
     )
+
+
+class UpdateAssetDTO(BaseModel):
+    """DTO для обновления медиа актива."""
+
+    status: AssetStatus | None = Field(default=None, description="Новый статус.")
+    current_version_id: UUID | None = Field(default=None, description="Актуальная версия актива.")
 
 
 class AssetResponse(BaseModel):

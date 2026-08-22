@@ -1,7 +1,6 @@
 from typing import Literal
 
 import json
-from collections.abc import Callable
 from functools import partial
 from uuid import NAMESPACE_OID, UUID, uuid5
 
