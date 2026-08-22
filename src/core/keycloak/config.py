@@ -17,4 +17,6 @@ class KeycloakConfig(BaseSettings):
     algorithms: tuple[str, ...] = ("RS256",)
     jwks_cache_ttl: int = 300
 
+    realm: str = Field(description="Realm с которым работает приложение.")
+
     timeout: float = 30 * 10
