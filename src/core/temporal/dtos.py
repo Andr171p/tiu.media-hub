@@ -1,6 +1,8 @@
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from uuid import UUID
+
+from src.core.assets.enums import AssetType
 
 
 class AssetProcessingContext(TypedDict):
@@ -14,3 +16,14 @@ class AssetProcessingContext(TypedDict):
     size: int
 
     storage_key: str
+
+
+class UploadInspectionResult(TypedDict):
+    """Результат проверки и идентификации загруженного файла."""
+
+    asset_type: AssetType
+    mime_type: str
+    size: int
+    checksum: str
+
+    meta: NotRequired[dict[str, Any]]

@@ -6,7 +6,7 @@ from uuid import NAMESPACE_OID, UUID, uuid5
 
 from .enums import AssetType, DerivativeType
 
-DOCUMENT_PREFIXES: tuple[str, ...] = (
+_DOCUMENT_PREFIXES: tuple[str, ...] = (
     "text/",
     "application/pdf",
     "application/rtf",
@@ -15,11 +15,11 @@ DOCUMENT_PREFIXES: tuple[str, ...] = (
     "application/vnd.openxmlformats-officedocument.",
 )
 
-MIME_TO_ASSET_TYPE_MAP: tuple[tuple[str, ...], AssetType] = (
+_MIME_TO_ASSET_TYPE_MAP: tuple[tuple[str, ...], AssetType] = (
     (("image/",), AssetType.IMAGE),
     (("video/",), AssetType.VIDEO),
     (("audio/",), AssetType.AUDIO),
-    (DOCUMENT_PREFIXES, AssetType.DOCUMENT),
+    (_DOCUMENT_PREFIXES, AssetType.DOCUMENT),
 )
 
 
@@ -34,10 +34,34 @@ def resolve_asset_type(mime_type: str) -> AssetType:
     return next(
         (
             asset_type
-            for prefixes, asset_type in MIME_TO_ASSET_TYPE_MAP
+            for prefixes, asset_type in _MIME_TO_ASSET_TYPE_MAP
             if cleaned.startswith(prefixes)
         ),
         AssetType.OTHER,
+    )
+
+
+def normalize_mime(mime_type: str) -> str:
+    """Приводит Mime к единому формату, например: `text/plain; charset=utf-8` -> `text/plain`."""
+
+    return mime_type.split(";", maxsplit=1)[0].strip().lower()
+
+
+def is_mime_compatible(declared: str, detected: str) -> bool:
+    """Проверяет совместимость заявленного и фактического Mime."""
+
+    if declared == "application/octet-stream":
+        return True
+
+    if declared == detected:
+        return True
+
+    declared_family = declared.partition("/")[0]
+    detected_family = detected.partition("/")[0]
+
+    return (
+        declared_family == detected_family
+        and declared_family in {"image", "video", "audio", "text"}
     )
 
 

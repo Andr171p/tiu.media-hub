@@ -31,6 +31,10 @@ async def _get_asset_or_404(session: AsyncSession, asset_id: UUID) -> Asset:
     return asset
 
 
+def _is_pending(asset: Asset) -> bool:
+    return asset.status == AssetStatus.PENDING
+
+
 async def init_upload(
         session: AsyncSession, asset_id: UUID, dto: UploadAssetDTO,
 ) -> UploadAssetResponse:
@@ -38,7 +42,7 @@ async def init_upload(
 
     asset = await _get_asset_or_404(session, asset_id)
 
-    if asset.status != AssetStatus.PENDING:
+    if not _is_pending(asset):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Asset is not in 'PENDING' status.",
         )
@@ -77,7 +81,7 @@ async def confirm_upload(session: AsyncSession, asset_id: UUID, upload_id: UUID)
 
     asset = await _get_asset_or_404(session, asset_id)
 
-    if asset.status != AssetStatus.PENDING:
+    if not _is_pending(asset):
         return AssetResponse.model_validate(asset)
 
     dto = UpdateAssetDTO(status=AssetStatus.PROCESSING)
