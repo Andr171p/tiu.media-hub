@@ -1,6 +1,6 @@
 from typing import Any
 
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Base
+from src.core.database.base import Base
 
 type CreateWrapper[
     ModelT: Base, CreateDTO: BaseModel, CreateOptionsT,

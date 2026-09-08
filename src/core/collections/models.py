@@ -10,8 +10,8 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.consts import DEFAULT_MAX_FILE_SIZE
-from src.core.common.models import Base
-from src.core.common.types import ListStr, PydanticJSONB, TextNull
+from src.core.database.base import Base
+from src.core.database.types import ListStr, PydanticJSONB, TextNull
 
 
 class Collection(Base):

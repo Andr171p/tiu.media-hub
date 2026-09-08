@@ -9,8 +9,8 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.core.common.models import Base
-from src.core.common.types import FloatNull, IntNull, StrUnique, TextNull
+from src.core.database.base import Base
+from src.core.database.types import FloatNull, IntNull, StrUnique, TextNull
 
 from .enums import AssetStatus, AssetType, DerivativeType
 

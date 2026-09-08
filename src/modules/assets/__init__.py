@@ -1,4 +1,4 @@
 from .crud import asset_crud
-from .dependencies import get_asset
+from .dependencies import asset_depends
 
-__all__ = ["asset_crud", "get_asset"]
+__all__ = ["asset_crud", "asset_depends"]

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
 from src.core.assets.schemas import (
     AssetResponse,
@@ -8,7 +8,8 @@ from src.core.assets.schemas import (
     UploadAssetDTO,
     UploadAssetResponse,
 )
-from src.modules.assets import asset_crud, get_asset, uploading
+from src.modules.assets import asset_crud, asset_depends
+from src.modules.assets.uploading import confirm_upload, init_upload
 from src.modules.database import DBSession
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
@@ -31,9 +32,11 @@ async def create_asset(session: DBSession, dto: CreateAssetDTO) -> AssetResponse
     summary="Инициировать загрузку медиа актива",
 )
 async def upload_asset(
-        session: DBSession, asset_id: UUID, dto: UploadAssetDTO,
+        session: DBSession,
+        asset_id: UUID,
+        dto: UploadAssetDTO,
 ) -> UploadAssetResponse:
-    return await uploading.init_upload(session, asset_id, dto)
+    return await init_upload(session, asset_id, dto)
 
 
 @router.post(
@@ -42,9 +45,11 @@ async def upload_asset(
     summary="Завершить загрузку медиа актива",
 )
 async def complete_asset_upload(
-        session: DBSession, asset_id: UUID, upload_id: UUID,
+        session: DBSession,
+        asset_id: UUID,
+        upload_id: UUID,
 ) -> AssetResponse:
-    return await uploading.confirm_upload(session, asset_id, upload_id)
+    return await confirm_upload(session, asset_id, upload_id)
 
 
 @router.get(
@@ -52,5 +57,5 @@ async def complete_asset_upload(
     status_code=status.HTTP_200_OK,
     summary="Получить медиа актив",
 )
-async def get_asset(asset: AssetResponse = Depends(get_asset)) -> AssetResponse:
+async def get_asset(asset: AssetResponse = asset_depends) -> AssetResponse:
     return asset

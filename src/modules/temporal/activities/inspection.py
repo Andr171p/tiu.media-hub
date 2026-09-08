@@ -7,7 +7,7 @@ import magic
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from src.core.assets.helpers import is_mime_compatible, normalize_mime, resolve_asset_type
+from src.core.assets.utils import is_mime_compatible, normalize_mime, resolve_asset_type
 from src.core.temporal.dtos import AssetProcessingContext, UploadInspectionResult
 from src.modules.s3 import s3_client
 

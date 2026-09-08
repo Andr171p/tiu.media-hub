@@ -12,7 +12,7 @@ from jwt.algorithms import RSAAlgorithm, RSAPublicKey
 from jwt.exceptions import InvalidTokenError
 
 from src.core.auth.exceptions import AuthenticationError
-from src.core.auth.models import User
+from src.core.auth.dtos import User
 
 from .config import KeycloakConfig
 
@@ -48,7 +48,7 @@ class KeycloakClient:
         self._session: aiohttp.ClientSession | None = None
 
         self._keys: dict[str, RSAPublicKey] = {}
-        self._keys_loaded_at: int = 0.0
+        self._keys_loaded_at: float = 0.0
         self._keys_lock = asyncio.Lock()
 
     @asynccontextmanager

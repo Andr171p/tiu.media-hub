@@ -11,7 +11,7 @@ from pydantic import (
     NonNegativeInt,
 )
 
-from src.core.common.schemas import Str255
+from src.core.common.types import Str255
 
 from .models import AssetStatus, AssetType
 from .types import FilePathStr, FileSize, MimeType

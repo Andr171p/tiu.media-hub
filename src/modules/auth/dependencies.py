@@ -5,7 +5,7 @@ from collections.abc import Callable
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.core.auth.models import User
+from src.core.auth.dtos import User
 from src.modules.keycloak import keycloak_client
 
 http_bearer = HTTPBearer(auto_error=False)

@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 
 from src.core.assets.models import Asset
 from src.core.assets.schemas import CreateAssetDTO, UpdateAssetDTO
-from src.core.auth.models import User
+from src.core.auth.dtos import User
 from src.core.common.crud import Crud
 
 
