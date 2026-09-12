@@ -1,19 +1,35 @@
+from typing import Literal, NamedTuple
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 
 import aiohttp
-from fastapi import status
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveInt,
+    SecretStr,
+)
 
-from src.core.services.base.config import SrvBaseConfig
-from src.core.services.base.exceptions import OAuthError
+from .config import SrvBaseConfig
+from .exceptions import OAuthError
 
 
-class _OAuthToken(BaseModel):
-    access_token: str
-    expires_at: float
+class _TokenResponse(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True, hide_input_in_errors=True)
+
+    access_token: SecretStr = Field(min_length=1, description="")
+    expires_in: PositiveInt = Field(description="")
+    token_type: Literal["Bearer"]
+
+
+class _TokenState(NamedTuple):
+    access_token: SecretStr
+    refresh_at: float
 
 
 class SrvBaseClient:
@@ -21,86 +37,87 @@ class SrvBaseClient:
         self._config = config
 
         self._session: aiohttp.ClientSession | None = None
-        self._token_state: _OAuthToken | None = None
+
+        self._token_state: _TokenState | None = None
         self._token_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def _get_token_session(self) -> AsyncIterator[aiohttp.ClientSession]:
-        """Возвращает HTTP-сессию с актуальным OAuth access token."""
+        token = await self.__get_access_token()
 
-        async with self.__get_session() as session:
-            access_token = await self.__get_access_token()
-            session.headers["Authorization"] = f"Bearer {access_token}"
-            yield session
+        session = self.__get_session()
+        session.headers["Authorization"] = f"Bearer {token.access_token.get_secret_value()}"
 
-    @asynccontextmanager
-    async def __get_session(self) -> AsyncIterator[aiohttp.ClientSession]:
+        yield session
+
+    def __get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=self._config.timeout)
             connector = aiohttp.TCPConnector(
                 limit=self._config.pool_limit,
-                ttl_dns_cache=300,
                 keepalive_timeout=self._config.keepalive_timeout,
+                ssl=self._config.verify_ssl,
             )
-            self._session = aiohttp.ClientSession(
-                base_url=str(self._config.base_url).rstrip("/"),
-                timeout=timeout,
-                connector=connector,
-            )
+            self._session = aiohttp.ClientSession(timeout=timeout, connector=connector)
 
-        yield self._session
+        return self._session
 
-    async def __request_oauth_token(self) -> _OAuthToken:
+    async def __load_access_token(self) -> _TokenState:
+        """Получает access токен от сервера авторизации (OAuth flow)."""
 
-        credentials = {
+        payload = {
             "grant_type": "client_credentials",
             "client_id": self._config.client_id,
-            "client_secret": self._config.client_secret,
+            "client_secret": self._config.client_secret.get_secret_value(),
         }
 
-        timeout = aiohttp.ClientTimeout(total=self._config.timeout)
-        async with (
-            aiohttp.ClientSession(timeout=timeout) as session,
-            session.post(self._config.token_url, data=credentials) as response,
-        ):
-            data = await response.json()
-            if response.status != status.HTTP_200_OK:
-                error_code = data.get("error_code") or "UNKNOWN_ERROR"
-                error_msg = data.get("message", "")
+        if self._config.scope:
+            payload["scope"] = self._config.scope
+
+        requested_at = time.monotonic()
+
+        session = self.__get_session()
+        async with session.post(
+            url=str(self._config.token_url),
+            data=payload,
+            allow_redirects=False,
+        ) as response:
+            if response.status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
                 raise OAuthError(
-                    f"[OAuth] Failed to fetch token. HTTP status: {response.status}. "
-                    f"Error code: '{error_code}'. Message: {error_msg}"
+                    f"[OAuth] ({response.status}) Token endpoint rejected credentials.",
                 )
 
             data = await response.json()
-            return _OAuthToken.model_validate(data)
 
-    def __is_token_expired(self) -> bool:
-        """Проверяет, требуется ли обновить сохранённый access token."""
+        token = _TokenResponse.model_validate(data)
 
-        if self._token_state is None:
-            return False
+        rotate_margin = min(self._config.token_rotate_margin, token.expires_in / 2)
+        refresh_at = requested_at + token.expires_in - rotate_margin
 
-        return time.monotonic() >= self._token_state.expires_at - self._config.token_rotate_margin
+        if refresh_at <= time.monotonic():
+            raise OAuthError("Token was already due for renewal when received.")
 
-    async def __get_access_token(self) -> str:
-        """Возвращает кешированный токен или получает новый при необходимости."""
+        return _TokenState(token.access_token, refresh_at)
 
-        if not self.__is_token_expired():
-            return self._token_state.access_token
+    async def __get_access_token(self) -> _TokenState:
+        """Потоко-безопасное получение access токена."""
+
+        now = time.monotonic()
+
+        if self._token_state is not None and now < self._token_state.refresh_at:
+            return self._token_state
 
         async with self._token_lock:
-            if not self.__is_token_expired():
-                return self._token_state.access_token
+            if self._token_state is None or now >= self._token_state.refresh_at:
+                self._token_state = await self.__load_access_token()
 
-            self._token_state = await self.__request_oauth_token()
-
-        return self._token_state.access_token
+            return self._token_state
 
     async def close(self) -> None:
-        if self._session is None:
-            return
+        """Безопасное закрытие соединения и сброс состояния."""
 
-        await self._session.close()
-        self._session = None
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
         self._token_state = None

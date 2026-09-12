@@ -1209,6 +1209,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiobotocore" },
+    { name = "aiohttp" },
     { name = "asyncpg" },
     { name = "fastapi", extra = ["all"] },
     { name = "pyjwt", extra = ["crypto"] },
@@ -1225,6 +1226,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiobotocore", specifier = ">=3.9.0" },
+    { name = "aiohttp", specifier = ">=3.13.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "fastapi", extras = ["all"], specifier = ">=0.141.1" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13.0" },

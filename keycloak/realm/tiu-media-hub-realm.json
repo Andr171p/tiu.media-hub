@@ -2,66 +2,170 @@
   "realm": "tiu-media-hub",
   "enabled": true,
   "displayName": "TIU Media Hub",
-
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": true,
   "verifyEmail": false,
-
   "roles": {
-    "realm": [
-      {
-        "name": "user",
-        "description": "Regular Media Hub user"
-      },
-      {
-        "name": "admin",
-        "description": "Media Hub administrator"
-      }
-    ]
+    "client": {
+      "tiu-media-hub-api": [
+        {
+          "description": "Use the DAM as a user",
+          "name": "user"
+        },
+        {
+          "description": "Administer DAM resources",
+          "name": "admin"
+        },
+        {
+          "description": "Service: read all assets",
+          "name": "assets:read"
+        },
+        {
+          "description": "Service: read active collections",
+          "name": "collections:read"
+        }
+      ]
+    }
   },
-
   "clients": [
     {
       "clientId": "tiu-media-hub-web",
       "name": "TIU Media Hub Web",
       "enabled": true,
-
       "protocol": "openid-connect",
-
       "publicClient": true,
       "clientAuthenticatorType": "none",
-
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-
       "redirectUris": [
-        "http://localhost:5173/*"
+        "http://localhost:5173/callback"
       ],
-
       "webOrigins": [
         "http://localhost:5173"
       ],
-
       "attributes": {
         "pkce.code.challenge.method": "S256"
-      }
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "fullScopeAllowed": false,
+      "protocolMappers": [
+        {
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "name": "dam-audience",
+          "config": {
+            "included.client.audience": "tiu-media-hub-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          },
+          "protocol": "openid-connect"
+        },
+        {
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "name": "dam-principal-type",
+          "config": {
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "claim.name": "auth_type",
+            "claim.value": "user",
+            "id.token.claim": "false"
+          },
+          "protocol": "openid-connect"
+        }
+      ]
     },
-
     {
       "clientId": "tiu-media-hub-api",
       "name": "TIU Media Hub API",
       "enabled": true,
-
       "protocol": "openid-connect",
-
       "publicClient": false,
       "clientAuthenticatorType": "client-secret",
-
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false
+    },
+    {
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "fullScopeAllowed": false,
+      "name": "TIU Media Hub Worker",
+      "clientAuthenticatorType": "client-secret",
+      "publicClient": false,
+      "enabled": true,
+      "defaultClientScopes": [
+        "basic",
+        "roles"
+      ],
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "name": "dam-audience",
+          "config": {
+            "included.client.audience": "tiu-media-hub-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          },
+          "protocol": "openid-connect"
+        },
+        {
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "name": "dam-principal-type",
+          "config": {
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "claim.name": "auth_type",
+            "claim.value": "client",
+            "id.token.claim": "false"
+          },
+          "protocol": "openid-connect"
+        }
+      ],
+      "implicitFlowEnabled": false,
+      "clientId": "tiu-media-hub-worker"
+    }
+  ],
+  "clientScopeMappings": {
+    "tiu-media-hub-api": [
+      {
+        "roles": [
+          "user",
+          "admin"
+        ],
+        "client": "tiu-media-hub-web"
+      },
+      {
+        "roles": [
+          "assets:read",
+          "collections:read"
+        ],
+        "client": "tiu-media-hub-worker"
+      }
+    ]
+  },
+  "users": [
+    {
+      "serviceAccountClientId": "tiu-media-hub-worker",
+      "clientRoles": {
+        "tiu-media-hub-api": [
+          "assets:read",
+          "collections:read"
+        ]
+      },
+      "username": "service-account-tiu-media-hub-worker",
+      "enabled": true
     }
   ]
 }

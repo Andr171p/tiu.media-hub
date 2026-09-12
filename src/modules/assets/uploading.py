@@ -5,16 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from src.consts import UPLOAD_URL_EXPIRES_IN
+from src.core.assets.authorization import check_asset_access
 from src.core.assets.enums import AssetStatus
-from src.core.assets.utils import build_upload_storage_key, generate_upload_id
 from src.core.assets.models import Asset
-from src.core.assets.schemas import (
+from src.core.assets.dtos import (
     AssetResponse,
     UpdateAssetDTO,
     UploadAssetDTO,
     UploadAssetResponse,
     UploadInfo,
 )
+from src.core.assets.utils import build_upload_storage_key, generate_upload_id
+from src.core.auth.models import User
 from src.modules.s3 import s3_client
 from src.modules.temporal import temporal_client
 
@@ -26,15 +28,21 @@ def _is_pending(asset: Asset) -> bool:
 
 
 async def init_upload(
-        session: AsyncSession, asset_id: UUID, dto: UploadAssetDTO,
+    session: AsyncSession,
+    asset_id: UUID,
+    dto: UploadAssetDTO,
+    user: User,
 ) -> UploadAssetResponse:
     """Инициирует прямую загрузку медиа актива в хранилище."""
 
-    if (asset := await asset_crud.read(session, asset_id)) is None:
+    asset = await asset_crud.read(session, asset_id)
+    if asset is None or asset.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Asset with ID {asset_id!r} not found.",
         )
+
+    check_asset_access(user, asset.author_id, write=True)
 
     if not _is_pending(asset):
         raise HTTPException(
@@ -74,13 +82,21 @@ async def init_upload(
     return UploadAssetResponse(uploadId=upload_id, upload=upload_info)
 
 
-async def confirm_upload(session: AsyncSession, asset_id: UUID, upload_id: UUID) -> AssetResponse:
+async def confirm_upload(
+    session: AsyncSession,
+    asset_id: UUID,
+    upload_id: UUID,
+    user: User,
+) -> AssetResponse:
 
-    if (asset := await asset_crud.read(session, asset_id)) is None:
+    asset = await asset_crud.read(session, asset_id)
+    if asset is None or asset.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Asset with ID {asset_id!r} not found.",
         )
+
+    check_asset_access(user, asset.author_id, write=True)
 
     if not _is_pending(asset):
         return AssetResponse.model_validate(asset)

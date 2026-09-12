@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 
 class PostgresConfig(BaseSettings):
@@ -15,5 +16,12 @@ class PostgresConfig(BaseSettings):
     driver: Literal["asyncpg"] = "asyncpg"
 
     @property
-    def uri(self) -> str:
-        return ...
+    def uri(self) -> URL:
+        return URL.create(
+            drivername=f"postgresql+{self.driver}",
+            username=self.username,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            database=self.db,
+        )

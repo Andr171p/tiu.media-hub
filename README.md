@@ -67,3 +67,5 @@ Asset(READY)
 Version(READY)
 current_version = version
 ```
+Архитектура аутентификации и авторизации: [документация](docs/Архитектура/authentication_and_authorization.md).
+Локальное окружение и настройка realm: [Keycloak setup](docs/Настройка%20окружения/keycloak_setup.md).

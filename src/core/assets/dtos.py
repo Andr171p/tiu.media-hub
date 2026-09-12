@@ -8,12 +8,14 @@ from pydantic import (
     ConfigDict,
     Field,
     HttpUrl,
+    JsonValue,
     NonNegativeInt,
 )
 
 from src.core.common.types import Str255
 
-from .models import AssetStatus, AssetType
+from .enums import AssetStatus, AssetType
+from .metadata import DescriptiveMetadata
 from .types import FilePathStr, FileSize, MimeType
 
 # =================================================================================================
@@ -39,7 +41,8 @@ class UploadInfo(BaseModel):
         description="HTTP метод для загрузки в S3.",
     )
     expires_in: NonNegativeInt = Field(
-        alias="expiresIn", description="Время жизни URL в секундах.",
+        alias="expiresIn",
+        description="Время жизни URL в секундах.",
     )
 
 
@@ -59,25 +62,25 @@ class CreateAssetDTO(BaseModel):
     """DTO для создания записи медиа актива."""
 
     title: Str255 = Field(
-        description="Название медиа-актива.", examples=["День открытых дверей 2026"],
+        description="Название медиа-актива.",
+        examples=["День открытых дверей 2026"],
     )
     description: str | None = Field(
         default=None,
         max_length=5000,
         description="Описание и контекст медиа-актива.",
     )
+    descriptive_metadata: DescriptiveMetadata = Field(default_factory=DescriptiveMetadata)
 
 
 class UpdateAssetDTO(BaseModel):
     """DTO для обновления медиа актива."""
 
     status: AssetStatus | None = Field(default=None, description="Новый статус.")
-    current_version_id: UUID | None = Field(default=None, description="Актуальная версия актива.")
 
 
 class AssetResponse(BaseModel):
-
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: UUID = Field(description="Уникальный идентификатор медиа актива.")
     created_at: AwareDatetime = Field(alias="createdAt", description="Дата создания.")
@@ -90,3 +93,6 @@ class AssetResponse(BaseModel):
 
     author_id: UUID | None = Field(None, alias="authorId", description="Тот кто загрузил актив.")
     current_version_id: UUID | None = Field(None, description="Идентификатор актуальной версии.")
+    descriptive_metadata: DescriptiveMetadata = Field(default_factory=DescriptiveMetadata)
+    metadata_profile_id: UUID | None = None
+    custom_metadata: dict[str, JsonValue] = Field(default_factory=dict)

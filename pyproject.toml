@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
+    "aiohttp>=3.13.0",
     "aiobotocore>=3.9.0",
     "asyncpg>=0.31.0",
     "fastapi[all]>=0.141.1",
@@ -13,9 +14,14 @@ dependencies = [
     "temporalio>=1.31.0",
 ]
 
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+
 [tool.ruff]
+target-version = "py313"
 line-length = 99
-preview = true
+
 extend-exclude = [
     "cli",
     "migrations",
@@ -25,88 +31,67 @@ extend-exclude = [
     "**/__pycache__",
     "**/.mypy_cache",
     "**/.ruff_cache",
-    "**/.venv"
+    "**/.venv",
 ]
 
 [tool.ruff.lint]
 select = [
-    "F",
-    "E",
+    "F",      # Pyflakes
+    "E",      # pycodestyle
     "W",
-    "C90",
-    "I",
-    "N",
-    "UP",
-    "YTT",
-    "ASYNC",
-    "S",
-    "BLE",
-    "B",
-    "A",
-    "COM",
-    "C4",
-    "DTZ",
-    "T10",
-    "EXE",
-    "ISC",
-    "ICN",
-    "G",
-    "INP",
-    "PIE",
-    "T20",
-    "PYI",
-    "PT",
-    "Q",
-    "RSE",
-    "RET",
-    "SLF",
-    "SLOT",
-    "SIM",
-    "TID",
-    "INT",
-    "ARG",
-    "TD",
-    "FIX",
-    "ERA",
-    "PD",
-    "PGH",
-    "PL",
-    "TRY",
-    "FLY",
-    "NPY",
-    "AIR",
-    "PERF",
-    "FURB",
-    "LOG",
-    "RUF",
+    "C90",    # mccabe
+    "I",      # isort
+    "N",      # naming
+    "UP",     # pyupgrade
+    "ASYNC",  # async correctness
+    "FAST",   # FastAPI
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "RET",    # return statements
+    "SIM",    # simplification
+    "ARG",    # unused arguments
+    "PL",     # pylint
+    "PERF",   # performance
+    "RUF",    # Ruff
+    "LOG",    # logging
 ]
+
 ignore = [
-    "S105",
+    # pytest / testing
     "S101",
-    "B008",
-    "B024",
-    "TRY201",
-    "PLW3201",
-    "PLW1641",
-    "N805",
-    "PTH",
-    "COM812",
-    "ISC001",
-    "TRY003",
-    "PT013",
+
+    # Sometimes useful in framework/application code
+    "ARG001",
+
+    # Python allows this and it is often useful in adapters
+    "PLC0415",
+
+    # Relative imports are sometimes useful inside modules
     "TID252",
+
+    # Unicode is valid and common in Russian comments/docstrings
     "RUF001",
     "RUF002",
     "RUF003",
-    "RUF067",
+
+    # Async functions without timeout are sometimes legitimate
     "ASYNC109",
-    "PLC0415",
+
+    # Existing project conventions
+    "N805",
+    "PLW3201",
+    "PLW1641",
+
+    # Too opinionated for this codebase
+    "TRY003",
 ]
+
 
 [tool.ruff.lint.isort]
 section-order = [
     "future",
-    "typings",
+    "typing",
     "standard-library",
     "third-party",
     "first-party",
@@ -114,7 +99,8 @@ section-order = [
 ]
 
 [tool.ruff.lint.isort.sections]
-"typings" = ['typing']
+"typing" = ["typing"]
+
 
 [tool.ruff.lint.pylint]
 max-args = 15
@@ -123,32 +109,78 @@ max-branches = 30
 
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "D", "ARG001", "F401", "PLR6301"]
-"migrations/*" = ["S101", "D", "ARG001", "F401", "PLR6301", "I001", "ERA001"]
+"tests/**/*" = [
+    "S101",
+    "ARG001",
+    "F401",
+    "PLR6301",
+]
 
-# -- MyPy --
+"migrations/**/*" = [
+    "S101",
+    "ARG001",
+    "F401",
+    "PLR6301",
+    "I001",
+    "ERA001",
+]
+
+"**/*crud.py" = [
+    "RUF029",
+    "ARG001",
+]
+
+"**/crud/**/*.py" = [
+    "RUF029",
+    "ARG001",
+]
+
+
+# ---------------------------------------------------------------------------
+# Ruff formatter
+# ---------------------------------------------------------------------------
+
+[tool.ruff.format]
+line-ending = "lf"
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+
+# ---------------------------------------------------------------------------
+# MyPy
+# ---------------------------------------------------------------------------
+
 [tool.mypy]
+python_version = "3.13"
 ignore_missing_imports = true
+
 exclude = [
     "src/migration",
     "src/migrations",
     "__samples__",
-    ".venv"
+    ".venv",
 ]
 
-# -- Vulture --
+
+# ---------------------------------------------------------------------------
+# Vulture
+# ---------------------------------------------------------------------------
+
 [tool.vulture]
 exclude = [
     ".vscode/",
     "__samples__/",
-    "tests",
-    ".venv"
+    "tests/",
+    ".venv/",
 ]
+
 ignore_names = [
     "post",
     "put",
     "delete",
-    "head"
+    "head",
 ]
 
 # --- Pytest ---

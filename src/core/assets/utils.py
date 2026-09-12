@@ -1,6 +1,7 @@
 from typing import Literal
 
 import json
+import re
 from functools import partial
 from uuid import NAMESPACE_OID, UUID, uuid5
 
@@ -86,7 +87,9 @@ def _build_storage_key(
         upload_id: UUID | None = None,
         filename: str | None = None,
         version_id: UUID | None = None,
-        derivative_type: DerivativeType | None = None,
+        derivative_type: DerivativeType | str | None = None,
+        profile: str = "default",
+        recipe_version: int = 1,
 ) -> str:
     """Базовая функция для формирования ключа медиа объекта."""
 
@@ -109,7 +112,14 @@ def _build_storage_key(
             if not version_id or not derivative_type:
                 raise ValueError("The 'derivative' required `version_id` and `derivative_type`.")
 
-            return f"{base_path}/versions/{version_id}/derivatives/{derivative_type.value}"
+            if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", str(derivative_type)):
+                raise ValueError("Invalid derivative type.")
+            if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", profile) or recipe_version < 1:
+                raise ValueError("Invalid derivative profile or recipe version.")
+            return (
+                f"{base_path}/versions/{version_id}/derivatives/"
+                f"{derivative_type}/{profile}/v{recipe_version}"
+            )
 
         case _:
             raise ValueError(f"Unsupported key type: {type_!r}.")
