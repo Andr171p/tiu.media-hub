@@ -2,15 +2,13 @@ from typing import Any
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.assets.authorization import is_asset_author
-from src.core.assets.dtos import CreateAssetDTO, CreateAssetVersionDTO, UpdateAssetDTO
-from src.core.assets.models import Asset, AssetVersion, UploadSession
+from src.core.assets.dtos import CreateAssetDTO, UpdateAssetDTO
+from src.core.assets.models import Asset
 from src.core.auth.models import User
 from src.core.collections.authorization import has_role, is_collection_owner
 from src.core.collections.models import Collection, CollectionMember, MemberRole
@@ -136,40 +134,3 @@ crud = Crud[
     None,
     None,
 ](Asset, create_wrapper=create_wrapper, update_wrapper=update_wrapper)
-
-
-async def create_asset_version(
-        session: AsyncSession,
-        asset_id: UUID,
-        dto: CreateAssetVersionDTO,
-) -> AssetVersion:
-
-    stmt = select(AssetVersion).where(AssetVersion.upload_id == dto.upload_id)
-
-    if (existing := await session.scalar(stmt)) is not None:
-        if existing.asset_id != asset_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Upload session is already associated with another asset."
-            )
-
-        return existing
-
-    if (asset := await crud.read(session, asset_id)) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset with ID {asset_id!r} not found.",
-        )
-
-    upload = await session.scalar(
-        select(UploadSession)
-        .where((UploadSession.id == dto.upload_id) & (UploadSession.asset_id == asset.id))
-        .with_for_update()
-    )
-    if upload is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not found upload session for asset",
-        )
-
-    return ...
