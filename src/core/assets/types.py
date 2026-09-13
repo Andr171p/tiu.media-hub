@@ -14,7 +14,8 @@ type FilePathStr = Annotated[
 ]
 
 type FileSize = Annotated[
-    NonNegativeInt, Field(description="Размер файла в байтах.", examples=[5242880]),
+    NonNegativeInt,
+    Field(description="Размер файла в байтах.", examples=[5242880]),
 ]
 
 type MimeType = Annotated[

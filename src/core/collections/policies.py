@@ -1,8 +1,10 @@
 from typing import Annotated
 
+from enum import StrEnum
+
 from pydantic import BaseModel, Field, PositiveInt
 
-from src.core.assets.enums import AssetType
+from src.core.assets.meta import AssetType
 
 MimePattern = Annotated[
     str,
@@ -37,3 +39,9 @@ class UploadPolicy(BaseModel):
         default=False,
         description="Разрешено ли хранение неопознанных файлов",
     )
+
+
+class Policies(BaseModel):
+    """Гибкая схема хранения политик (JSON поле, не требует миграций)."""
+
+    upload: UploadPolicy = Field(description="Политика загрузки файлов")

@@ -14,6 +14,7 @@ type CreateWrapper[
     ModelT: Base, CreateDTO: BaseModel, CreateOptionsT,
 ] = Callable[
     [
+        AsyncSession,
         Callable[[dict[str, Any] | None], Awaitable[ModelT]],
         CreateDTO,
         CreateOptionsT | None,
@@ -23,6 +24,7 @@ type CreateWrapper[
 
 type ReadWrapper[ModelT: Base, ReadOptionsT] = Callable[
     [
+        AsyncSession,
         Callable[[], Awaitable[ModelT | None]],
         Any,
         ReadOptionsT | None,
@@ -34,6 +36,7 @@ type UpdateWrapper[
     ModelT: Base, UpdateDTO: BaseModel, UpdateOptionsT,
 ] = Callable[
     [
+        AsyncSession,
         Callable[[dict[str, Any] | None], Awaitable[ModelT]],
         ModelT,
         UpdateDTO,
@@ -44,6 +47,7 @@ type UpdateWrapper[
 
 type DeleteWrapper[ModelT: Base, DeleteOptionsT] = Callable[
     [
+        AsyncSession,
         Callable[[], Awaitable[None]],
         ModelT,
         DeleteOptionsT | None,
@@ -91,7 +95,7 @@ class Crud[
             return model
 
         if self._create_wrapper:
-            return await self._create_wrapper(_base_create, dto, options)
+            return await self._create_wrapper(session, _base_create, dto, options)
 
         return await _base_create()
 
@@ -108,7 +112,7 @@ class Crud[
             return result.scalar_one_or_none()
 
         if self._read_wrapper:
-            return await self._read_wrapper(_base_read, uid, options)
+            return await self._read_wrapper(session, _base_read, uid, options)
 
         return await _base_read()
 
@@ -130,7 +134,7 @@ class Crud[
             return model
 
         if self._update_wrapper:
-            return await self._update_wrapper(_base_update, model, dto, options)
+            return await self._update_wrapper(session, _base_update, model, dto, options)
 
         return await _base_update()
 
@@ -143,7 +147,7 @@ class Crud[
             await session.flush()
 
         if self._delete_wrapper:
-            await self._delete_wrapper(_base_delete, model, options)
+            await self._delete_wrapper(session, _base_delete, model, options)
             return
 
         await _base_delete()

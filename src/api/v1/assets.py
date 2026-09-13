@@ -5,12 +5,22 @@ from fastapi import APIRouter, status
 from src.core.assets.dtos import (
     AssetResponse,
     CreateAssetDTO,
+    CreateAssetVersionDTO,
+    UpdateAssetDTO,
     UploadAssetDTO,
-    UploadAssetResponse,
+    UploadResult,
 )
-from src.modules.assets import asset_crud, asset_depends
-from src.modules.assets.uploading import confirm_upload, init_upload
-from src.modules.auth import CurrentUser, auth_security
+from src.core.assets.models import Asset
+from src.modules.assets.crud import crud as asset_crud
+from src.modules.assets.dependencies import asset_depends
+from src.modules.assets.uploading import complete_upload, init_upload
+from src.modules.assets.versioning import sync_asset_version
+from src.modules.auth.dependencies import (
+    CurrentUser,
+    auth_client_security,
+    auth_security,
+    auth_user_security,
+)
 from src.modules.database import DBSession
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
@@ -31,6 +41,22 @@ async def create_asset(
     return AssetResponse.model_validate(created)
 
 
+@router.patch(
+    path="/{asset_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Обновить медиа актив",
+)
+async def update_asset(
+        session: DBSession,
+        dto: UpdateAssetDTO,
+        user: CurrentUser,
+        asset: Asset = asset_depends,
+) -> AssetResponse:
+    updated = await asset_crud.update(session, asset, dto)
+    await session.commit()
+    return AssetResponse.model_validate(updated)
+
+
 @router.post(
     path="/{asset_id}/uploads",
     status_code=status.HTTP_200_OK,
@@ -41,22 +67,51 @@ async def upload_asset(
     asset_id: UUID,
     dto: UploadAssetDTO,
     user: CurrentUser,
-) -> UploadAssetResponse:
+) -> UploadResult:
     return await init_upload(session, asset_id, dto, user)
 
 
 @router.post(
     path="/{asset_id}/uploads/{upload_id}/complete",
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[auth_user_security],
     summary="Завершить загрузку медиа актива",
 )
 async def complete_asset_upload(
     session: DBSession,
     asset_id: UUID,
     upload_id: UUID,
-    user: CurrentUser,
 ) -> AssetResponse:
-    return await confirm_upload(session, asset_id, upload_id, user)
+    return await complete_upload(
+        session,
+        asset_id=asset_id,
+        upload_id=upload_id,
+    )
+
+
+@router.put(
+    path="/{asset_id}/uploads/{upload_id}/version",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[auth_client_security],
+    summary="Создание версии из upload session"
+)
+async def create_asset_version(
+    session: DBSession,
+    asset_id: UUID,
+    upload_id: UUID,
+    dto: CreateAssetVersionDTO,
+) -> ...:
+    asset_version = await sync_asset_version(session, asset_id, upload_id, dto)
+    await session.commit()
+
+
+@router.patch(
+    path="/{asset_id}/versions/{version_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[auth_client_security],
+    summary="Обновление версии актива",
+)
+async def update_asset_version(): ...
 
 
 @router.get(
@@ -66,4 +121,4 @@ async def complete_asset_upload(
     summary="Получить медиа актив",
 )
 async def get_asset(asset: AssetResponse = asset_depends) -> AssetResponse:
-    return asset
+    return AssetResponse.model_validate(asset)

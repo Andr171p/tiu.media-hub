@@ -1,11 +1,6 @@
-from typing import Literal
+from uuid import UUID
 
-import json
-import re
-from functools import partial
-from uuid import NAMESPACE_OID, UUID, uuid5
-
-from .enums import AssetType, DerivativeType
+from .meta import AssetType
 
 _DOCUMENT_PREFIXES: tuple[str, ...] = (
     "text/",
@@ -66,65 +61,5 @@ def is_mime_compatible(declared: str, detected: str) -> bool:
     )
 
 
-def generate_upload_id(asset_id: UUID, filename: str, mime_type: str, size: int) -> UUID:
-    """Клюя для дудупликации потока загрузки."""
-
-    payload = {
-        "asset_id": asset_id.hex,
-        "filename": filename,
-        "mime_type": mime_type,
-        "size": size,
-    }
-    serialized = json.dumps(payload, sort_keys=True)
-
-    return uuid5(NAMESPACE_OID, serialized)
-
-
-def _build_storage_key(
-        type_: Literal["upload", "original", "derivative"],
-        *,
-        asset_id: UUID,
-        upload_id: UUID | None = None,
-        filename: str | None = None,
-        version_id: UUID | None = None,
-        derivative_type: DerivativeType | str | None = None,
-        profile: str = "default",
-        recipe_version: int = 1,
-) -> str:
-    """Базовая функция для формирования ключа медиа объекта."""
-
-    base_path = f"assets/{asset_id}"
-
-    match type_:
-        case "upload":
-            if not upload_id or not filename:
-                raise ValueError("The 'upload' requires an `upload_id` and `filename`.")
-
-            return f"{base_path}/uploads/{upload_id}/{filename}"
-
-        case "original":
-            if not version_id:
-                raise ValueError("The 'original' requires `version_id`.")
-
-            return f"{base_path}/versions/{version_id}/original"
-
-        case "derivative":
-            if not version_id or not derivative_type:
-                raise ValueError("The 'derivative' required `version_id` and `derivative_type`.")
-
-            if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", str(derivative_type)):
-                raise ValueError("Invalid derivative type.")
-            if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", profile) or recipe_version < 1:
-                raise ValueError("Invalid derivative profile or recipe version.")
-            return (
-                f"{base_path}/versions/{version_id}/derivatives/"
-                f"{derivative_type}/{profile}/v{recipe_version}"
-            )
-
-        case _:
-            raise ValueError(f"Unsupported key type: {type_!r}.")
-
-
-build_upload_storage_key = partial(_build_storage_key, "upload")
-build_original_storage_key = partial(_build_storage_key, "original")
-build_derivative_storage_key = partial(_build_storage_key, "derivative")
+def build_storage_key(asset_id: UUID, source_id: UUID) -> str:
+    return f"/assets/{asset_id}/sources/{source_id}"

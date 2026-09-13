@@ -3,13 +3,15 @@ from __future__ import annotations
 from enum import StrEnum
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database.base import Base
 from src.core.database.types import PydanticJSONB, TextNull
 
-from .policies import UploadPolicy
+from .policies import Policies
 
 
 class CollectionStatus(StrEnum):
@@ -52,8 +54,8 @@ class CollectionSettings(Base):
     collection_id: Mapped[UUID] = mapped_column(ForeignKey("collections.id"), unique=True)
     version: Mapped[int] = mapped_column(default=1)
 
-    upload_policy: Mapped[UploadPolicy] = mapped_column(PydanticJSONB(UploadPolicy))
-    processing_policy: Mapped[...] = mapped_column(PydanticJSONB(...))
+    custom_meta_schema: Mapped[dict[str, JsonValue]] = mapped_column(JSONB, default=dict)
+    policies: Mapped[Policies] = mapped_column(PydanticJSONB(Policies))
 
     collection: Mapped[Collection] = relationship(back_populates="settings")
 

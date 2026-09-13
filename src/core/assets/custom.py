@@ -1,86 +1,25 @@
-"""
-Конструктор для кастомных метаданных.
-"""
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError, ValidationError
+from pydantic import JsonValue
 
-from typing import Annotated, Literal
+from .exceptions import InvalidCustomMetaError, InvalidMetaSchemaError
 
-from decimal import Decimal
-
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-
-type MetaKey = Annotated[
-    str,
-    StringConstraints(
-        min_length=1,
-        max_length=64,
-        pattern=r"^[a-z][a-z0-9_]*$",
-    ),
-]
+type MetaSchema = dict[str, JsonValue]
+type CustomMeta = dict[str, JsonValue]
 
 
-class MetadField(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    key: MetaKey
-    label: str = Field(min_length=1, max_length=255,)
-
-    description: str | None = None
-
-    required: bool = False
-    multiple: bool = False
-
-    searchable: bool = True
-    filterable: bool = True
+def validate_meta_schema(schema: MetaSchema) -> None:
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as exc:
+        raise InvalidMetaSchemaError("Invalid custom metadata schema.") from exc
 
 
-class TextMetaField(MetadField):
-    type: Literal["text"] = "text"
-
-    min_length: int | None = Field(default=None, ge=0)
-    max_length: int | None = Field(default=None, ge=1)
-
-    pattern: str | None = None
+def validate_custom_meta(schema: MetaSchema, custom_meta: CustomMeta) -> None:
+    try:
+        Draft202012Validator(schema).validate(custom_meta)
+    except ValidationError as exc:
+        raise InvalidCustomMetaError(exc.message) from exc
 
 
-class IntegerMetaField(MetadField):
-    type: Literal["integer"] = "integer"
-
-    minimum: int | None = None
-    maximum: int | None = None
-
-
-class DecimalMetaField(MetadField):
-    type: Literal["decimal"] = "decimal"
-
-    minimum: Decimal | None = None
-    maximum: Decimal | None = None
-
-
-class BooleanMetaField(MetadField):
-    type: Literal["boolean"] = "boolean"
-
-
-class DateMetaField(MetadField):
-    type: Literal["date"] = "date"
-
-
-class DateTimeMetaField(MetadField):
-    type: Literal["datetime"] = "datetime"
-
-
-class EnumMetaField(MetadField):
-    type: Literal["enum"] = "enum"
-
-    options: frozenset[str] = Field(min_length=1)
-
-
-type MetaFieldDefinition = Annotated[
-    TextMetaField
-    | IntegerMetaField
-    | DecimalMetaField
-    | BooleanMetaField
-    | DateMetaField
-    | DateTimeMetaField
-    | EnumMetaField,
-    Field(discriminator="type"),
-]
+__all__ = ["CustomMeta", "MetaSchema", "validate_custom_meta", "validate_meta_schema"]
