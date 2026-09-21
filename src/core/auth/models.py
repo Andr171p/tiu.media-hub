@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class AuthType(StrEnum):
-    USER = "user"
+    USER = "creator"
     CLIENT = "client"
 
 

@@ -23,11 +23,11 @@ async def create_wrapper(
     session: AsyncSession,
     func: Callable[[dict[str, Any] | None], Awaitable[Asset]],
     dto: CreateAssetDTO,
-    user: User | None = None,
+    creator: User | None = None,
 ) -> Asset:
     """Логика создания медиа-актива с его первой версией."""
 
-    if user is None:
+    if creator is None:
         raise ValueError("Options required for asset creation.")
 
     collection_id = dto.collection_id
@@ -37,7 +37,7 @@ async def create_wrapper(
             detail=f"Collection with ID {collection_id!r} not found.",
         )
 
-    if not await can_create_asset(session, collection, user):
+    if not await can_create_asset(session, collection, creator):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create assets.",
@@ -46,7 +46,7 @@ async def create_wrapper(
     custom_meta_schema = collection.settings.custom_meta_schema
     validate_custom_meta(custom_meta_schema, dto.custom_meta)
 
-    asset = await func({"author_id": user.id})
+    asset = await func({"author_id": creator.id})
 
     version = AssetVersion(
         asset_id=asset.id,
@@ -65,9 +65,9 @@ async def update_wrapper(
     func: Callable[[dict[str, Any] | None], Awaitable[Asset]],
     asset: Asset,
     dto: UpdateAssetDTO,
-    user: User | None = None,
+    updator: User | None = None,
 ) -> Asset:
-    if user is None:
+    if updator is None:
         raise ValueError("Options required for asset update.")
 
     collection_id = dto.collection_id
@@ -83,7 +83,7 @@ async def update_wrapper(
             detail="Asset does not belong to this collection.",
         )
 
-    if not await can_update_asset(session, collection, asset, user):
+    if not await can_update_asset(session, collection, asset, updator):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update asset.",
@@ -134,7 +134,7 @@ async def create_asset_version(
     session: AsyncSession,
     asset_id: UUID,
     dto: CreateAssetVersionDTO,
-    user: User,
+    creator: User,
 ) -> AssetVersion:
     """Создание версии медиа-актива."""
 
@@ -157,13 +157,13 @@ async def create_asset_version(
             detail="Archived asset cannot receive new versions."
         )
 
-    if not can_update_asset(session, collection, asset, user):
+    if not can_update_asset(session, collection, asset, creator):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create asset version.",
         )
 
-    if (stored_object := await get_user_object(session, dto.object_id, user.id)) is None:
+    if (stored_object := await get_user_object(session, dto.object_id, creator.id)) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Object with ID {dto.object_id!r} not found.",

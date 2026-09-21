@@ -26,8 +26,8 @@ HTTP-запросов. Конкретные клиенты должны явно
 
 class CollectionsClient(SrvBaseClient):
     async def get_collection(self, collection_id: UUID) -> Collection:
-        async with self._get_token_session() as session:
-            async with session.get(
+        async with self._get_token_session() as db:
+            async with db.get(
                 f"{self.config.base_url}/collections/{collection_id}",
             ) as response:
                 response.raise_for_status()

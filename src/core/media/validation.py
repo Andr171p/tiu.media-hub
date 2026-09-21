@@ -23,7 +23,7 @@ def validate_upload_ownership(upload: UploadSession, user_id: UUID | None) -> No
     if upload.uploaded_by is not None and upload.uploaded_by != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to access the upload session.",
+            detail="Insufficient permissions to access the upload db.",
         )
 
 
@@ -36,7 +36,7 @@ def is_valid_upload_status_to_complete(upload: UploadSession) -> bool:
     if upload.status != UploadStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot complete upload session. Invalid status: {upload.status}.",
+            detail=f"Cannot complete upload db. Invalid status: {upload.status}.",
         )
 
     return False
