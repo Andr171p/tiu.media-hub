@@ -34,3 +34,12 @@ class UploadInfo(BaseModel):
 class UploadResponse(BaseModel):
     id: UUID = Field(description="Идентификатор сессии загрузки")
     upload: UploadInfo = Field(description="Информация для прямой загрузки файла в S3")
+
+
+class StoredObjectResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    id: UUID = Field(description="Уникальный идентификатор сохранённого объекта")
+    url: HttpUrl = Field(description="Ссылка на CDN")
+    size_bytes: PositiveInt = Field(description="Размер объекта в байтах")
+    content_type: str = Field(description="MIME-тип объекта")

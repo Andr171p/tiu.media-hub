@@ -45,3 +45,8 @@ async def get_or_create_object(
         obj = await session.scalar(select_stmt)
 
     return obj
+
+
+async def get_object(session: AsyncSession, obj_id: UUID) -> StoredObject | None:
+    stmt = select(StoredObject).where(StoredObject.id == obj_id)
+    return await session.scalar(stmt)

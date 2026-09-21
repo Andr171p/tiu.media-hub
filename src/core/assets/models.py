@@ -36,14 +36,6 @@ class VersionStatus(StrEnum):
     FAILED = "failed"
 
 
-class UploadStatus(StrEnum):
-    PENDING = "pending"
-    VALIDATING = "validating"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    EXPIRED = "expired"
-
-
 class Asset(Base):
     """Логическая единица цифрового контента."""
 
@@ -77,46 +69,13 @@ class Asset(Base):
     )
 
 
-class UploadSession(Base):
-    """Поток загрузки медиа актива."""
-
-    __tablename__ = "upload_sessions"
-
-    asset_id: Mapped[UUID] = mapped_column(
-        ForeignKey("assets.id", ondelete="CASCADE"),
-        index=True,
-    )
-    object_id: Mapped[UUID] = mapped_column(
-        ForeignKey("objects.id", ondelete="RESTRICT"),
-        unique=True,
-    )
-
-    status: Mapped[UploadStatus] = mapped_column(default=UploadStatus.PENDING)
-    filename: Mapped[str]
-    uploaded_by: Mapped[UUID]
-
-    declared_mime_type: Mapped[str]
-    declared_size: Mapped[int]
-
-    asset: Mapped[Asset] = relationship(back_populates="uploads")
-    object: Mapped[Object] = relationship()
-    version: Mapped[AssetVersion | None] = relationship(
-        back_populates="upload",
-        uselist=False,
-    )
-
-
 class AssetVersion(Base):
     """Версия медиа актива."""
 
     __tablename__ = "asset_versions"
 
     asset_id: Mapped[UUID] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
-    object_id: Mapped[UUID] = mapped_column(ForeignKey("objects.id", ondelete="RESTRICT"))
-    upload_id: Mapped[UUID] = mapped_column(
-        ForeignKey("upload_sessions.id", ondelete="RESTRICT"),
-        unique=True,
-    )
+    object_id: Mapped[UUID]
 
     number: Mapped[int]
     original_filename: Mapped[str]
@@ -130,8 +89,6 @@ class AssetVersion(Base):
     )
 
     asset: Mapped[Asset] = relationship(back_populates="versions", foreign_keys=[asset_id])
-    upload: Mapped[UploadSession] = relationship(back_populates="version")
-    object: Mapped[Object] = relationship()
     derivatives: Mapped[list[AssetDerivative]] = relationship(
         back_populates="version",
         cascade="all, delete-orphan",
@@ -162,21 +119,3 @@ class AssetDerivative(Base):
     __table_args__ = (
         UniqueConstraint("version_id", "variant", name="uq_derivative_version_variant"),
     )
-
-
-class Object(Base):
-    """
-    Физический объект в объектном хранилище.
-
-    Запись может быть создана до непосредственной загрузки объекта.
-    Технические характеристики заполняются после inspection.
-    """
-
-    __tablename__ = "objects"
-
-    storage_key: Mapped[StrUnique]
-    mime_type: Mapped[StrNull]
-    size_bytes: Mapped[int | None] = mapped_column(nullable=True)
-    checksum: Mapped[StrNull]
-
-    __table_args__ = (Index("ix_object_checksum", "checksum"),)

@@ -86,6 +86,9 @@ ignore = [
 
     # Too opinionated for this codebase
     "TRY003",
+
+    # Игнорировать проверку параметров пути, спрятанных в Depends
+    "FAST003",
 ]
 
 
