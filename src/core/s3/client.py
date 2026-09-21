@@ -2,15 +2,26 @@ from typing import Any, BinaryIO, Protocol
 
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass
+from datetime import datetime
 
 from aiobotocore.client import AioBaseClient
 from aiobotocore.session import get_session
 from botocore.exceptions import ClientError
 
 from .config import S3Config
+from .exceptions import S3NotFoundError
 
 # Минимальный размер чанка для загрузки в S3
 _MIN_CHUNK_SIZE = 5 * 1024 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectMeta:
+    size: int
+    content_type: str
+    last_modified: datetime
+    checksum: str | None = None
 
 
 class AsyncReadable(Protocol):
@@ -27,13 +38,13 @@ class S3Client:
         async with self.session.create_client(**self._config.model_dump()) as client:
             yield client
 
-    async def upload(self, file: BinaryIO, storage_key: str, mime_type: str) -> None:
+    async def upload(self, file: BinaryIO, storage_key: str, content_type: str) -> None:
         async with self.get_client() as client:
             await client.put_object(
                 Bucket=self._config.bucket,
                 Body=file,
                 Key=storage_key,
-                ContentType=mime_type,
+                ContentType=content_type,
             )
 
     async def delete(self, storage_key: str) -> None:
@@ -41,7 +52,11 @@ class S3Client:
             await client.delete_object(Bucket=self._config.bucket, Key=storage_key)
 
     async def create_upload_url(
-            self, storage_key: str, mime_type: str, expires_in: int = 3600
+        self,
+        storage_key: str,
+        content_type: str,
+        checksum: str | None = None,
+        expires_in: int = 3600,
     ) -> str:
         async with self.get_client() as client:
             return await client.generate_presigned_url(
@@ -49,7 +64,7 @@ class S3Client:
                 Params={
                     "Bucket": self._config.bucket,
                     "Key": storage_key,
-                    "ContentType": mime_type,
+                    "ContentType": content_type,
                 },
                 ExpiresIn=expires_in,
                 HttpMethod="PUT",
@@ -64,12 +79,18 @@ class S3Client:
                 HttpMethod="GET",
             )
 
-    async def get_metadata(self, storage_key: str) -> dict[str, Any]:
+    async def get_metadata(self, storage_key: str) -> ObjectMeta:
         try:
             async with self.get_client() as client:
-                return await client.head_object(Bucket=self._config.bucket, Key=storage_key)
+                response = await client.head_object(Bucket=self._config.bucket, Key=storage_key)
+                return ObjectMeta(
+                    size=response["ContentLength"],
+                    content_type=response["ContentType"],
+                    last_modified=response["LastModified"],
+                    checksum=response.get("ChecksumSHA256"),
+                )
         except ClientError:
-            raise NotFoundError(f"File not found by key - {storage_key}") from None
+            raise S3NotFoundError(f"Object with key {storage_key!r}") from None
 
     async def upload_stream(
             self,
@@ -94,7 +115,7 @@ class S3Client:
             upload_id = response["UploadId"]
             parts: list[dict[str, Any]] = []
 
-            try:  # noqa: PLW0717, RUF105
+            try:
                 part_number = 1
 
                 while chunk := await file_stream.read(chunk_size):

@@ -88,7 +88,7 @@ async def inspect_upload(context: AssetProcessingContext) -> UploadInspectionRes
             non_retryable=True,
         )
 
-    declared_mime = normalize_mime(context["mime_type"])
+    declared_mime = normalize_mime(context["content_type"])
     detected_mime = await _detect_mime_type(result.sample_bytes)
 
     if not is_mime_compatible(declared_mime, detected_mime):

@@ -28,7 +28,7 @@ async def init_upload(asset: Asset, dto: UploadAssetDTO) -> UploadResult:
 
     upload_url = await s3_client.create_upload_url(
         storage_key=storage_key,
-        mime_type=dto.mime_type,
+        content_type=dto.mime_type,
         expires_in=UPLOAD_URL_EXPIRES_IN,
     )
     upload_info = UploadInfo(url=upload_url, expires_in=UPLOAD_URL_EXPIRES_IN)

@@ -1,0 +1,3 @@
+
+class InvalidUploadError(Exception):
+    pass

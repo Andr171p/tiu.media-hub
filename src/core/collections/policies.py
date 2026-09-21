@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from enum import StrEnum
-
 from pydantic import BaseModel, Field, PositiveInt
 
 from src.core.assets.meta import AssetType
