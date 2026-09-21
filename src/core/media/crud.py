@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.s3.client import ObjectMeta
 
-from .models import StoredObject, UploadSession
+from .models import StoredObject, UploadSession, UploadStatus
 
 
 async def get_upload_for_update(session: AsyncSession, upload_id: UUID) -> UploadSession | None:
@@ -49,4 +49,22 @@ async def get_or_create_object(
 
 async def get_object(session: AsyncSession, obj_id: UUID) -> StoredObject | None:
     stmt = select(StoredObject).where(StoredObject.id == obj_id)
+    return await session.scalar(stmt)
+
+
+async def get_user_object(
+        session: AsyncSession, obj_id: UUID, user_id: UUID,
+) -> StoredObject | None:
+    """Получает загруженный объект пользователя."""
+
+    stmt = (
+        select(StoredObject)
+        .join(UploadSession, UploadSession.object_id == obj_id)
+        .where(
+            StoredObject.id == obj_id,
+            UploadSession.uploaded_by == user_id,
+            UploadSession.status == UploadStatus.COMPLETED,
+        )
+        .limit(1)
+    )
     return await session.scalar(stmt)

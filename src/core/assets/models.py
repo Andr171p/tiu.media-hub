@@ -1,12 +1,9 @@
 """
 Asset
- ├── UploadSession
- │     └── Object
- │
  └── AssetVersion
-       ├── Object
+       ├── StoredObject
        └── AssetDerivative
-             └── Object
+             └── StoredObject
 """
 
 from __future__ import annotations
@@ -15,12 +12,12 @@ from enum import StrEnum
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import ForeignKey, Index, UniqueConstraint
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database.base import Base
-from src.core.database.types import PydanticJSONB, StrNull, StrUnique, TextNull
+from src.core.database.types import PydanticJSONB, TextNull
 
 from .meta import AssetMeta
 
@@ -45,13 +42,9 @@ class Asset(Base):
 
     title: Mapped[str]
     description: Mapped[TextNull]
-    custom_meta: Mapped[dict[str, JsonValue] | None] = mapped_column(
-        JSONB,
-        nullable=True,
-        default=None,
-    )
+    custom_meta: Mapped[dict[str, JsonValue]] = mapped_column(JSONB, default=dict)
 
-    status: Mapped[AssetStatus]
+    status: Mapped[AssetStatus] = mapped_column(default=AssetStatus.ACTIVE)
     author_id: Mapped[UUID]
 
     current_version_id: Mapped[UUID | None] = mapped_column(
@@ -61,10 +54,6 @@ class Asset(Base):
     versions: Mapped[list[AssetVersion]] = relationship(
         back_populates="asset",
         foreign_keys="AssetVersion.asset_id",
-        cascade="all, delete-orphan",
-    )
-    uploads: Mapped[list[UploadSession]] = relationship(
-        back_populates="asset",
         cascade="all, delete-orphan",
     )
 
@@ -96,6 +85,7 @@ class AssetVersion(Base):
 
     __table_args__ = (
         UniqueConstraint("asset_id", "number", name="uq_asset_version_number"),
+        UniqueConstraint("asset_id", "object_id", name="uq_asset_version_object"),
     )
 
 
@@ -111,9 +101,6 @@ class AssetDerivative(Base):
     variant: Mapped[str]
     object_id: Mapped[UUID] = mapped_column(ForeignKey("object.id", ondelete="RESTRICT"))
 
-    status: Mapped[...]
-
-    object: Mapped[Object] = relationship()
     version: Mapped[AssetVersion] = relationship(back_populates="derivatives")
 
     __table_args__ = (

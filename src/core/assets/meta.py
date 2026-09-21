@@ -1,6 +1,5 @@
 from typing import Annotated, Literal
 
-from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, PositiveInt
@@ -41,7 +40,7 @@ class VideoMeta(BaseModel):
 
     duration_ms: PositiveInt = Field(description="Длительность видео в миллисекундах")
 
-    frame_rate: Decimal | None = Field(default=None, description="Частота кадров (FPS)")
+    frame_rate: float | None = Field(default=None, description="Частота кадров (FPS)")
     bit_rate: PositiveInt | None = Field(default=None, description="Общий битрейт в бит/с")
 
     video_codec: str | None = Field(
@@ -93,11 +92,27 @@ class DocumentMeta(BaseModel):
     )
 
 
+class ArchiveMeta(BaseModel):
+    type: Literal[AssetType.ARCHIVE] = AssetType.ARCHIVE
+
+    file_count: int | None = Field(
+        default=None,
+        ge=0,
+        description="Количество файлов в архиве",
+    )
+
+
+class OtherMeta(BaseModel):
+    type: Literal[AssetType.OTHER] = AssetType.OTHER
+
+
 type AssetMeta = Annotated[
     ImageMeta
     | VideoMeta
     | AudioMeta
-    | DocumentMeta,
+    | DocumentMeta
+    | ArchiveMeta
+    | OtherMeta,
     Field(discriminator="type"),
 ]
 

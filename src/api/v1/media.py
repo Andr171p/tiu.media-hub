@@ -22,7 +22,9 @@ router = APIRouter(prefix="/media", tags=["Media"])
     summary="Инициация direct S3 upload",
 )
 async def create_upload(db: DBSession, dto: CreateUploadDTO, user: CurrentUser) -> UploadResponse:
-    return uploading.create_upload(db, dto, user_id=user.id)
+    upload = uploading.create_upload(db, dto, user_id=user.id)
+    await db.commit()
+    return upload
 
 
 @router.post(
@@ -36,6 +38,7 @@ async def complete_upload(
     user: CurrentUser,
 ) -> StoredObjectResponse:
     obj = await uploading.complete_upload(db, upload_id, user_id=user.id)
+    await db.commit()
     return build_object_response(obj)
 
 

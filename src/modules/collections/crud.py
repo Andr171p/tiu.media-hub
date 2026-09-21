@@ -45,8 +45,8 @@ async def get_collection_member(
     """Получение участника коллекции по его составному идентификатору."""
 
     stmt = select(CollectionMember).where(
-        (CollectionMember.collection_id == collection_id)
-        & (CollectionMember.user_id == user_id)
+        CollectionMember.collection_id == collection_id,
+        CollectionMember.user_id == user_id
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()

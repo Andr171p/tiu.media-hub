@@ -1,102 +1,63 @@
 from typing import Any
 
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Sequence
+from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.assets.authorization import is_asset_author
-from src.core.assets.dtos import CreateAssetDTO, UpdateAssetDTO
-from src.core.assets.models import Asset
+from src.core.assets.custom_meta_validation import validate_custom_meta
+from src.core.assets.dtos import CreateAssetDTO, CreateAssetVersionDTO, UpdateAssetDTO
+from src.core.assets.models import Asset, AssetStatus, AssetVersion
 from src.core.auth.models import User
-from src.core.collections.authorization import has_role, is_collection_owner
-from src.core.collections.models import Collection, CollectionMember, MemberRole
 from src.core.common.crud import Crud
-from src.modules.collections.crud import get_collection_member
+from src.core.media.crud import get_user_object
+from src.modules.collections.crud import crud as collection_crud
 
-
-@dataclass(frozen=True, slots=True)
-class CreateAssetOptions:
-    collection: Collection
-    user: User
-
-
-@dataclass(frozen=True, slots=True)
-class UpdateAssetOptions:
-    collection: Collection
-    user: User
-
-
-async def _get_member_or_403(
-    session: AsyncSession,
-    collection: Collection,
-    user: User,
-) -> CollectionMember:
-    if (member := await get_collection_member(session, collection.id, user.id)) is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not a member of this collection.",
-        )
-
-    return member
-
-
-async def _authorize_asset_create(
-    session: AsyncSession,
-    collection: Collection,
-    user: User,
-) -> None:
-    """Поверяет права на создание медиа актива."""
-
-    if is_collection_owner(collection, user.id):
-        return
-
-    member = await _get_member_or_403(session, collection, user)
-
-    if not has_role(member, MemberRole.CONTRIBUTOR, MemberRole.MANAGER):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to modify assets in this collection.",
-        )
-
-
-async def _authorize_asset_update(
-    session: AsyncSession,
-    asset: Asset,
-    collection: Collection,
-    user: User,
-) -> None:
-    """Проверяет права на обновление медиа актива."""
-
-    if is_collection_owner(collection, user) or is_asset_author(asset, user):
-        return
-
-    member = await _get_member_or_403(session, collection, user)
-
-    if not has_role(member, MemberRole.MANAGER):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to update this asset.",
-        )
-
-    return
+from .authorization import can_create_asset, can_update_asset
+from .versioning import get_next_asset_version_number
 
 
 async def create_wrapper(
     session: AsyncSession,
     func: Callable[[dict[str, Any] | None], Awaitable[Asset]],
     dto: CreateAssetDTO,
-    options: CreateAssetOptions | None = None,
+    user: User | None = None,
 ) -> Asset:
-    if options is None:
+    """Логика создания медиа-актива с его первой версией."""
+
+    if user is None:
         raise ValueError("Options required for asset creation.")
 
-    await _authorize_asset_create(session, options.collection, options.user)
+    collection_id = dto.collection_id
+    if (collection := await collection_crud.read(session, collection_id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection with ID {collection_id!r} not found.",
+        )
 
-    return await func(
-        {"collection_id": options.collection.id, "author_id": options.user.id},
+    if not await can_create_asset(session, collection, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to create assets.",
+        )
+
+    custom_meta_schema = collection.settings.custom_meta_schema
+    validate_custom_meta(custom_meta_schema, dto.custom_meta)
+
+    asset = await func({"author_id": user.id})
+
+    version = AssetVersion(
+        asset_id=asset.id,
+        object_id=dto.object_id,
+        number=1,
+        original_filename=dto.original_filename,
     )
+    session.add(version)
+    await session.flush()
+
+    return asset
 
 
 async def update_wrapper(
@@ -104,33 +65,137 @@ async def update_wrapper(
     func: Callable[[dict[str, Any] | None], Awaitable[Asset]],
     asset: Asset,
     dto: UpdateAssetDTO,
-    options: UpdateAssetOptions | None = None,
+    user: User | None = None,
 ) -> Asset:
-    if options is None:
+    if user is None:
         raise ValueError("Options required for asset update.")
 
-    if asset.collection_id != options.collection.id:
+    collection_id = dto.collection_id
+    if (collection := await collection_crud.read(session, collection_id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection with ID {collection_id!r} not found.",
+        )
+
+    if asset.collection_id != collection.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Asset does not belong to this collection.",
         )
 
-    await _authorize_asset_update(
-        session,
-        asset=asset,
-        collection=options.collection,
-        user=options.collection,
-    )
+    if not await can_update_asset(session, collection, asset, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to update asset.",
+        )
 
-    return await func({})
+    payload = dto.model_dump(exclude={"collectionId"})
+    return await func({**payload})
 
 
 crud = Crud[
     Asset,
     CreateAssetDTO,
     UpdateAssetDTO,
-    CreateAssetOptions,
-    UpdateAssetOptions,
+    User,
     None,
+    User,
     None,
 ](Asset, create_wrapper=create_wrapper, update_wrapper=update_wrapper)
+
+
+async def _get_asset_for_update(session: AsyncSession, asset_id: UUID) -> Asset | None:
+    """Получение ``Asset`` с блокировкой."""
+
+    stmt = select(Asset).where(Asset.id == asset_id)
+    return await session.scalar(stmt)
+
+
+async def _validate_asset_version_uniqueness(
+    session: AsyncSession,
+    asset_id: UUID,
+    obj_id: UUID,
+) -> None:
+    """Проверяет, что объект ещё не привязан к данному медиа-активу как версия."""
+
+    stmt = select(AssetVersion).where(
+        AssetVersion.asset_id == asset_id,
+        AssetVersion.object_id == obj_id,
+    )
+
+    if await session.scalar(stmt) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Object with ID {obj_id!r} is already used by an asset version."
+        )
+
+
+async def create_asset_version(
+    session: AsyncSession,
+    asset_id: UUID,
+    dto: CreateAssetVersionDTO,
+    user: User,
+) -> AssetVersion:
+    """Создание версии медиа-актива."""
+
+    if (asset := await _get_asset_for_update(session, asset_id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset with ID {asset_id!r} not found.",
+        )
+
+    collection_id = asset.collection_id
+    if (collection := await collection_crud.read(session, collection_id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection with ID {collection_id!r} not found.",
+        )
+
+    if asset.status == AssetStatus.ARCHIVED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Archived asset cannot receive new versions."
+        )
+
+    if not can_update_asset(session, collection, asset, user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to create asset version.",
+        )
+
+    if (stored_object := await get_user_object(session, dto.object_id, user.id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Object with ID {dto.object_id!r} not found.",
+        )
+
+    await _validate_asset_version_uniqueness(session, asset_id, stored_object.id)
+
+    number = await get_next_asset_version_number(session, asset_id)
+    version = AssetVersion(
+        asset_id=asset.id,
+        object_id=stored_object.id,
+        number=number,
+        original_filename=dto.original_filename,
+    )
+    session.add(version)
+    await session.flush()
+
+    return version
+
+
+async def get_asset_versions(
+    session: AsyncSession,
+    asset_id: UUID,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+) -> Sequence[AssetVersion]:
+    stmt = (
+        select(AssetVersion)
+        .where(AssetVersion.asset_id == asset_id)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await session.execute(stmt)
+    return result.scalars().all()
