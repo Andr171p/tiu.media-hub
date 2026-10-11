@@ -138,6 +138,15 @@ def _embedded_from_image(image: Image.Image) -> EmbeddedMetadata:
     )
 
 
+def _dpi(value: Any) -> float | None:
+    """Pillow отдаёт DPI парой по осям; у фотографий они совпадают — берём горизонтальное."""
+
+    try:
+        return round(float(value[0]), 2) if value else None
+    except TypeError, ValueError, IndexError:
+        return None
+
+
 def _icc_description(image: Image.Image) -> str | None:
     if not (icc := image.info.get("icc_profile")):
         return None
@@ -167,7 +176,7 @@ def _extract_image(file: IO[bytes], mime_type: str, config: ProcessingConfig) ->
             height=height,
             mode=image.mode,
             has_alpha=image.mode in {"RGBA", "LA", "PA"} or "transparency" in image.info,
-            dpi=tuple(float(value) for value in image.info["dpi"])[:2] if "dpi" in image.info else None,  # type: ignore[arg-type]
+            dpi=_dpi(image.info.get("dpi")),
             icc_profile=_icc_description(image),
             frames=getattr(image, "n_frames", 1),
             embedded=_embedded_from_image(image),

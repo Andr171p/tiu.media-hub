@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import Field, NonNegativeInt, PositiveInt
+from pydantic import Field, NonNegativeInt, PositiveInt, field_validator
 
 from src.core.common.schemas import Schema
 
@@ -64,10 +64,16 @@ class ImageMeta(Schema):
     height: PositiveInt
     mode: str = Field(description="Цветовая модель PIL: RGB, RGBA, CMYK, L…")
     has_alpha: bool = False
-    dpi: tuple[float, float] | None = None
+    dpi: float | None = Field(default=None, description="Разрешение, точек на дюйм")
     icc_profile: str | None = Field(default=None, description="Описание встроенного ICC-профиля")
     frames: PositiveInt = Field(default=1, description="Кадров (анимация, многостраничный TIFF)")
     embedded: EmbeddedMetadata = Field(default_factory=EmbeddedMetadata)
+
+    @field_validator("dpi", mode="before")
+    @classmethod
+    def _single_dpi(cls, value: object) -> object:
+        # Ранние версии хранили DPI парой по осям
+        return value[0] if isinstance(value, list | tuple) and value else value
 
 
 class DocumentMeta(Schema):

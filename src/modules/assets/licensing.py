@@ -7,7 +7,7 @@ from pydantic import Field, HttpUrl, StringConstraints, model_validator
 
 from src.core.common.schemas import Schema
 
-type _Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+type RightsText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
 class LicenseType(StrEnum):
@@ -27,8 +27,8 @@ class License(Schema):
     """Права на использование актива: кто владеет и на каких условиях можно использовать."""
 
     type: LicenseType
-    holder: _Text | None = Field(default=None, description="Правообладатель", examples=["ФГБОУ ВО ТИУ"])
-    author: _Text | None = Field(default=None, description="Автор произведения")
+    holder: RightsText | None = Field(default=None, description="Правообладатель", examples=["ФГБОУ ВО ТИУ"])
+    author: RightsText | None = Field(default=None, description="Автор произведения")
     source_url: HttpUrl | None = Field(default=None, description="Источник или текст лицензии")
     terms: Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)] | None = Field(
         default=None,

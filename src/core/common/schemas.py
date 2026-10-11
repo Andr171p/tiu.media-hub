@@ -5,7 +5,13 @@ from pydantic.alias_generators import to_camel
 class Schema(BaseModel):
     """Базовая схема API: camelCase в JSON, snake_case в Python."""
 
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+        # В ответах поля со значением по умолчанию всё равно присутствуют: в схеме они обязательные
+        json_schema_serialization_defaults_required=True,
+    )
 
 
 class PageParams(Schema):
