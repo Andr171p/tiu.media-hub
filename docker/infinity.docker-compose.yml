@@ -1,0 +1,29 @@
+services:
+  # Эмбеддинги для text-to-image: изображения кодирует CLIP ViT-B/32, текст — мультиязычный энкодер,
+  # дистиллированный в то же векторное пространство (понимает русский). Обе модели — Apache-2.0.
+  # Первый запуск скачивает модели (~1 ГБ) в volume, поэтому healthcheck ждёт долго.
+  infinity:
+    image: michaelf34/infinity:0.0.77-cpu
+    restart: unless-stopped
+    command:
+      - v2
+      - --model-id=${INFINITY_IMAGE_MODEL:-openai/clip-vit-base-patch32}
+      - --model-id=${INFINITY_TEXT_MODEL:-sentence-transformers/clip-ViT-B-32-multilingual-v1}
+      - --engine=torch
+      - --port=7997
+      - --batch-size=16
+    environment:
+      HF_HOME: /app/.cache
+    ports:
+      - "${INFINITY_PORT:-7997}:7997"
+    volumes:
+      - infinity_cache:/app/.cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:7997/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+volumes:
+  infinity_cache:

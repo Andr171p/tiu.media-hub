@@ -1,31 +1,35 @@
-from fastapi import status
+from http import HTTPStatus
+
+from pydantic import JsonValue
 
 
 class AppError(Exception):
-    """Базовое исключение для создания иерархии ошибок."""
+    """Базовая ошибка приложения: несёт HTTP-статус и машиночитаемый код."""
 
-    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
-    error_code: str = "INTERNAL_SERVER_ERROR"
+    status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR
+    error_code: str = "internal_error"
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int | None = None,
-        error_code: int | str | None = None,
-    ) -> None:
-        if status_code:
-            self.status_code = status_code
-        if error_code:
-            self.error_code = error_code
-
+    def __init__(self, message: str, *, details: JsonValue = None) -> None:
         super().__init__(message)
+        self.message = message
+        self.details = details
 
 
 class NotFoundError(AppError):
-    status_code = status.HTTP_404_NOT_FOUND
-    error_code = "NOT_FOUND_ERROR"
+    status_code = HTTPStatus.NOT_FOUND
+    error_code = "not_found"
 
 
 class ConflictError(AppError):
-    status_code = status.HTTP_409_CONFLICT
-    error_code = "CONFLICT_ERROR"
+    status_code = HTTPStatus.CONFLICT
+    error_code = "conflict"
+
+
+class InvalidDataError(AppError):
+    """Данные синтаксически корректны, но нарушают правила предметной области."""
+
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+    error_code = "invalid_data"
+
+
+__all__ = ["AppError", "ConflictError", "InvalidDataError", "NotFoundError"]

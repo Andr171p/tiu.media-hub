@@ -6,8 +6,9 @@ from http import HTTPStatus
 import aiohttp
 import jwt
 
+from src.core.auth import AuthenticationUnavailableError, UnauthorizedError
+
 from .config import KeycloakConfig
-from .exceptions import KeycloakError
 
 _NEGATIVE_INF = float("-inf")
 
@@ -92,16 +93,19 @@ class KeycloakJwksClient:
         return bool(self._keys) and now - self._loaded_at < self._config.jwks_cache_ttl
 
     async def _load_keys(self) -> dict[str, jwt.PyJWK]:
-        """"""
+        """Загружает и валидирует JWKS. Любой сбой означает недоступность провайдера, а не плохой токен."""
 
         session = self._get_session()
-        async with session.get(str(self._config.jwks_url), allow_redirects=False) as response:
-            if response.status != HTTPStatus.OK:
-                raise KeycloakError("[Keycloak] Signing keys are unavailable.")
+        try:
+            async with session.get(str(self._config.jwks_url), allow_redirects=False) as response:
+                if response.status != HTTPStatus.OK:
+                    raise AuthenticationUnavailableError("Signing keys are unavailable.")
 
-            doc = await response.json()
+                document = await response.json()
 
-        return _parse_jwks(doc, self._config.algorithms)
+            return _parse_jwks(document, self._config.algorithms)
+        except (aiohttp.ClientError, TimeoutError, TypeError, ValueError, jwt.PyJWKError) as exc:
+            raise AuthenticationUnavailableError("Signing keys are unavailable.") from exc
 
     async def get_key(self, kid: str) -> jwt.PyJWK:
         now = time.monotonic()
@@ -116,11 +120,11 @@ class KeycloakJwksClient:
                 return key
 
             if now < self._retry_after:
-                raise KeycloakError("[Keycloak] Signing keys are temporarily unavailable.")
+                raise AuthenticationUnavailableError("Signing keys are temporarily unavailable.")
 
             # Не позволяет случайным kid постоянно обращаться в keycloak
             if self._is_fresh(now) and now < self._unknown_kid_refresh_after:
-                raise KeycloakError("[Keycloak] Unknown signing key.")
+                raise UnauthorizedError("Unknown signing key.")
 
             try:
                 keys = await self._load_keys()
@@ -134,7 +138,7 @@ class KeycloakJwksClient:
 
             if (key := keys.get(kid)) is None:
                 self._unknown_kid_refresh_after = now + self._config.jwks_refresh_cooldown
-                raise KeycloakError("[Keycloak] Unknown signing key.")
+                raise UnauthorizedError("Unknown signing key.")
 
         return key
 

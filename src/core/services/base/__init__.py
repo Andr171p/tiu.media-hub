@@ -23,7 +23,6 @@ HTTP-запросов. Конкретные клиенты должны явно
 Пример:
 
 ```python
-
 class CollectionsClient(SrvBaseClient):
     async def get_collection(self, collection_id: UUID) -> Collection:
         async with self._get_token_session() as db:

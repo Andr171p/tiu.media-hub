@@ -1,65 +1,71 @@
-from typing import Any
+from typing import Any, Literal
 
 from collections.abc import Mapping
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.core.auth.exceptions import AuthenticationError
-from src.core.auth.models import Auth, Client, User
+from src.core.auth import Auth, AuthClient, AuthType, AuthUser, UnauthorizedError
 
 from .config import KeycloakConfig
 
 
+class _ResourceAccess(BaseModel):
+    roles: list[str] = Field(default_factory=list)
+
+
 class _TokenClaims(BaseModel):
-    """Полезная нагрузка полученная из JWT токена Keycloak."""
+    """Проверенная полезная нагрузка access-токена Keycloak."""
 
     model_config = ConfigDict(strict=True)
 
-    class _ResourceAccess(BaseModel):
-        roles: list[str] = Field(default_factory=list)
-
-    sub: str = Field(min_length=1)
+    sub: UUID
     azp: str = Field(min_length=1)
+    typ: Literal["Bearer"]
     resource_access: dict[str, _ResourceAccess] = Field(default_factory=dict)
 
-    preferred_username: str | None = Field(default=None, description="Никнейм пользователя")
-    email: EmailStr | None = Field(default=None, description="Электронная почта пользователя")
-    email_verified: bool = Field(default=False, description="Подтверждена ли почта")
-    name: str | None = Field(default=None, description="Полное имя пользователя")
+    preferred_username: str | None = None
+    email: str | None = None
+    email_verified: bool = False
+    name: str | None = None
 
 
-def _get_roles(claims: _TokenClaims, audience: str) -> frozenset[str]:
-    """Безопасно извлекает роли для указанной аудитории."""
+def build_auth_from_claims(payload: Mapping[str, Any], config: KeycloakConfig) -> AuthUser | AuthClient:
+    """
+    Тип субъекта определяется клиентом, выпустившим токен (``azp``), по непересекающимся allowlist.
+    Учитываются только роли клиента API: realm-роли и роли других клиентов игнорируются.
+    """
 
-    access = claims.resource_access.get(audience)
-    return frozenset(access.roles) if access else frozenset()
-
-
-def build_auth_from_claims(payload: Mapping[str, Any], config: KeycloakConfig) -> Auth:
     try:
-        claims = _TokenClaims.model_validate(payload)
+        claims = _TokenClaims.model_validate(payload, strict=False)
     except ValidationError as exc:
-        raise AuthenticationError("Invalid access token claims") from exc
+        raise UnauthorizedError("Invalid access token claims.") from exc
 
-    roles = _get_roles(claims, config.audience)
-    client_id = claims.azp
+    access = claims.resource_access.get(config.audience)
+    roles = frozenset(access.roles) if access else frozenset()
 
     if claims.azp in config.service_client_ids:
-        return Client(client_id=client_id, roles=roles)
-
-    if client_id in config.user_client_ids:
-        try:
-            user_id = UUID(claims.sub)
-        except ValueError:
-            raise AuthenticationError("User subject must be valid UUID.") from None
-
-        return User(
-            id=user_id,
-            username=claims.preferred_username,
-            email=claims.email,
-            full_name=claims.name,
-            roles=roles,
+        return AuthClient(
+            id=claims.sub,
+            type=AuthType.CLIENT,
+            client=Auth.Client(id=claims.azp, roles=roles),
         )
 
-    raise AuthenticationError("Untrusted client application (azp).")
+    if claims.azp in config.user_client_ids:
+        return AuthUser(
+            id=claims.sub,
+            type=AuthType.USER,
+            user=Auth.User(
+                id=claims.sub,
+                email=claims.email,
+                email_verified=claims.email_verified,
+                username=claims.preferred_username,
+                full_name=claims.name,
+                roles=roles,
+            ),
+        )
+
+    raise UnauthorizedError("Untrusted client application.")
+
+
+__all__ = ["build_auth_from_claims"]

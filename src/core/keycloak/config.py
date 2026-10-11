@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import AnyHttpUrl, Field, PositiveFloat, PositiveInt
+from pydantic import AnyHttpUrl, Field, PositiveFloat, PositiveInt, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +15,7 @@ class KeycloakConfig(BaseSettings):
             "URL эндпоинта Keycloak с публичными ключами (JWKS) "
             "для проверки криптографической подписи токенов"
         ),
-        examples=["http://localhost:8081/realms/tiu-media-hub/protocol/openid-connect/certs"]
+        examples=["http://localhost:8081/realms/tiu-media-hub/protocol/openid-connect/certs"],
     )
 
     audience: str = Field(min_length=1, description="Идентификатор (аудитория) текущего API")
@@ -45,9 +45,7 @@ class KeycloakConfig(BaseSettings):
         default=5.0,
         ge=0,
         le=60,
-        description=(
-            "Допустимая погрешность часов сервера в секундах при проверке времени жизни токена"
-        ),
+        description=("Допустимая погрешность часов сервера в секундах при проверке времени жизни токена"),
     )
     timeout: PositiveFloat = Field(
         default=10.0,
@@ -57,3 +55,9 @@ class KeycloakConfig(BaseSettings):
         default=20,
         description="Максимальное количество соединений в пуле",
     )
+
+    @model_validator(mode="after")
+    def _check_client_ids_disjoint(self) -> Self:
+        if overlap := self.user_client_ids & self.service_client_ids:
+            raise ValueError(f"Client IDs cannot be both user and service clients: {sorted(overlap)}.")
+        return self
