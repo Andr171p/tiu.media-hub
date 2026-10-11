@@ -28,6 +28,7 @@ class Resources:
 
 async def create_resources() -> Resources:
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     engine = create_engine(PostgresConfig())
     sessions = create_session_factory(engine)

@@ -1,7 +1,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 ADMIN_ROLE = "admin"
 """Роль клиента API в Keycloak: полный доступ ко всем коллекциям DAM."""
@@ -26,7 +26,8 @@ class Auth(BaseModel):
         model_config = ConfigDict(frozen=True)
 
         id: UUID = Field(description="Идентификатор пользователя Keycloak (sub)")
-        email: EmailStr | None = Field(default=None, description="Электронная почта")
+        # Формат почты проверяет Keycloak: строгая валидация здесь отвергла бы корпоративные домены
+        email: str | None = Field(default=None, description="Электронная почта")
         email_verified: bool = Field(default=False, description="Подтверждена ли почта")
         username: str | None = Field(default=None, description="Логин")
         full_name: str | None = Field(default=None, description="ФИО")

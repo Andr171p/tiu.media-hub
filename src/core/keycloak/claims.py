@@ -3,7 +3,7 @@ from typing import Any, Literal
 from collections.abc import Mapping
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.core.auth import Auth, AuthClient, AuthType, AuthUser, UnauthorizedError
 
@@ -25,7 +25,7 @@ class _TokenClaims(BaseModel):
     resource_access: dict[str, _ResourceAccess] = Field(default_factory=dict)
 
     preferred_username: str | None = None
-    email: EmailStr | None = None
+    email: str | None = None
     email_verified: bool = False
     name: str | None = None
 

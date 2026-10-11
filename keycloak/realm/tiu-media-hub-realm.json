@@ -114,7 +114,7 @@
   "users": [
     {
       "username": "admin",
-      "email": "admin@tiu.local",
+      "email": "admin@tyuiu.ru",
       "firstName": "Администратор",
       "lastName": "DAM",
       "enabled": true,
@@ -124,7 +124,7 @@
     },
     {
       "username": "ivanov",
-      "email": "ivanov@tiu.local",
+      "email": "ivanov@tyuiu.ru",
       "firstName": "Иван",
       "lastName": "Иванов",
       "enabled": true,
@@ -133,7 +133,7 @@
     },
     {
       "username": "petrova",
-      "email": "petrova@tiu.local",
+      "email": "petrova@tyuiu.ru",
       "firstName": "Мария",
       "lastName": "Петрова",
       "enabled": true,

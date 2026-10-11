@@ -16,6 +16,7 @@ type Lifespan = Callable[[FastAPI], AbstractAsyncContextManager[None]]
 def create_app(config: ApiConfig | None = None, *, lifespan: Lifespan = default_lifespan) -> FastAPI:
     config = config or ApiConfig()
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     app = FastAPI(title=config.title, version="0.1.0", lifespan=lifespan)
     app.add_middleware(
