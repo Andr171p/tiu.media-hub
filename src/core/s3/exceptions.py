@@ -1,3 +1,2 @@
-
 class S3NotFoundError(Exception):
-    pass
+    """Объект отсутствует в хранилище."""

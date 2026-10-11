@@ -1,0 +1,27 @@
+services:
+  # Эмбеддинги SigLIP: текст и изображения в одном векторном пространстве (text-to-image поиск).
+  # Первый запуск скачивает модель (~1.5 ГБ) в volume, поэтому healthcheck ждёт долго.
+  infinity:
+    image: michaelf34/infinity:0.0.77-cpu
+    restart: unless-stopped
+    command:
+      - v2
+      - --model-id=${INFINITY_MODEL:-google/siglip-base-patch16-256-multilingual}
+      - --engine=torch
+      - --port=7997
+      - --batch-size=16
+    environment:
+      HF_HOME: /app/.cache
+    ports:
+      - "${INFINITY_PORT:-7997}:7997"
+    volumes:
+      - infinity_cache:/app/.cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:7997/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+volumes:
+  infinity_cache:
