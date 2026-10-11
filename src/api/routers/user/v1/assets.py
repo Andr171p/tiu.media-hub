@@ -4,13 +4,12 @@ from fastapi import APIRouter, Query, status
 
 from src.api.dependencies import (
     AssetContextDep,
-    CdnDep,
     CollectionAccessDep,
     CurrentUser,
     DBSession,
     SearchDep,
 )
-from src.api.presenters import present_asset, present_assets
+from src.api.presenters import PresenterDep
 from src.core.common.schemas import Page
 from src.modules import assets, collections
 from src.modules.assets import (
@@ -30,14 +29,14 @@ router = APIRouter(tags=["Assets"])
 @router.get("/collections/{collection_id}/assets", summary="Активы коллекции")
 async def list_assets(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     access: CollectionAccessDep,
     filters: Annotated[AssetFilters, Query()],
 ) -> Page[AssetResponse]:
     items, total = await assets.list_assets(db, access, filters)
     return Page(
-        items=await present_assets(db, cdn, items, user=user),
+        items=await presenter.assets(db, items, user=user),
         total=total,
         limit=filters.limit,
         offset=filters.offset,
@@ -55,7 +54,7 @@ async def list_assets(
 )
 async def create_asset(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     access: CollectionAccessDep,
     dto: CreateAssetDTO,
@@ -64,12 +63,12 @@ async def create_asset(
     await db.commit()
     await process_version.kiq(str(version.id))
 
-    return await present_asset(db, cdn, await assets.get_context(db, asset.id, user))
+    return await presenter.asset(db, await assets.get_context(db, asset.id, user))
 
 
 @router.get("/assets/{asset_id}", summary="Получить актив")
-async def get_asset(db: DBSession, cdn: CdnDep, context: AssetContextDep) -> AssetResponse:
-    return await present_asset(db, cdn, context)
+async def get_asset(db: DBSession, presenter: PresenterDep, context: AssetContextDep) -> AssetResponse:
+    return await presenter.asset(db, context)
 
 
 @router.patch(
@@ -79,7 +78,7 @@ async def get_asset(db: DBSession, cdn: CdnDep, context: AssetContextDep) -> Ass
 )
 async def update_asset(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     context: AssetContextDep,
     dto: UpdateAssetDTO,
@@ -88,13 +87,13 @@ async def update_asset(
     await db.commit()
     await index_asset.kiq(str(context.asset.id))
 
-    return await present_asset(db, cdn, await assets.get_context(db, context.asset.id, user))
+    return await presenter.asset(db, await assets.get_context(db, context.asset.id, user))
 
 
 @router.put("/assets/{asset_id}/tags", summary="Заменить теги актива")
 async def set_tags(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     context: AssetContextDep,
     dto: SetTagsDTO,
@@ -103,7 +102,7 @@ async def set_tags(
     await db.commit()
     await index_asset.kiq(str(context.asset.id))
 
-    return await present_asset(db, cdn, await assets.get_context(db, context.asset.id, user))
+    return await presenter.asset(db, await assets.get_context(db, context.asset.id, user))
 
 
 @router.delete("/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить актив")
@@ -116,7 +115,7 @@ async def delete_asset(db: DBSession, context: AssetContextDep) -> None:
 @router.get("/assets/{asset_id}/similar", summary="Похожие изображения")
 async def similar_assets(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     search: SearchDep,
     user: CurrentUser,
     context: AssetContextDep,
@@ -125,4 +124,4 @@ async def similar_assets(
     allowed = await collections.accessible_collection_ids(db, user)
     scope = SearchScope(collection_ids=frozenset(allowed) if allowed is not None else None)
     items = await search.similar(db, context.asset.id, scope, limit=limit)
-    return await present_assets(db, cdn, items, user=user)
+    return await presenter.assets(db, items, user=user)

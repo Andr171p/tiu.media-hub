@@ -239,7 +239,10 @@ async def delete_collection(access: CollectionAccess) -> None:
 
 
 def to_collection_response(
-    access: CollectionAccess, stats: CollectionStats | None = None
+    access: CollectionAccess,
+    stats: CollectionStats | None = None,
+    *,
+    watermark_url: str | None = None,
 ) -> CollectionResponse:
     collection = access.collection
     return CollectionResponse(
@@ -254,6 +257,7 @@ def to_collection_response(
         role=access.role.label,
         permissions=access.permissions,
         stats=stats or CollectionStats(),
+        watermark_url=watermark_url,
     )
 
 

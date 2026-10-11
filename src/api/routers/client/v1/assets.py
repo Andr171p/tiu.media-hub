@@ -2,8 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter
 
-from src.api.dependencies import CdnDep, DBSession, S3Dep, SearchDep, UploadConfigDep
-from src.api.presenters import present_assets
+from src.api.dependencies import DBSession, S3Dep, SearchDep, UploadConfigDep
+from src.api.presenters import PresenterDep
 from src.modules import assets
 from src.modules.assets import AssetResponse, DownloadResponse, versions
 from src.modules.search import SearchDTO, SearchResponse, build_scope
@@ -12,8 +12,8 @@ router = APIRouter(tags=["Client: Assets"])
 
 
 @router.get("/assets/{asset_id}", summary="Получить актив")
-async def get_asset(db: DBSession, cdn: CdnDep, asset_id: UUID) -> AssetResponse:
-    [response] = await present_assets(db, cdn, [await assets.get_asset(db, asset_id)], user=None)
+async def get_asset(db: DBSession, presenter: PresenterDep, asset_id: UUID) -> AssetResponse:
+    [response] = await presenter.assets(db, [await assets.get_asset(db, asset_id)], user=None)
     return response
 
 
@@ -35,10 +35,12 @@ async def download_version(
 
 
 @router.post("/search", summary="Поиск активов во всех коллекциях")
-async def search_assets(db: DBSession, cdn: CdnDep, search: SearchDep, dto: SearchDTO) -> SearchResponse:
+async def search_assets(
+    db: DBSession, presenter: PresenterDep, search: SearchDep, dto: SearchDTO
+) -> SearchResponse:
     items, has_more = await search.search(db, dto, build_scope(dto, allowed=None))
     return SearchResponse(
-        items=await present_assets(db, cdn, items, user=None),
+        items=await presenter.assets(db, items, user=None),
         limit=dto.limit,
         offset=dto.offset,
         has_more=has_more,

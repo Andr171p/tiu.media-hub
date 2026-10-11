@@ -1,71 +1,33 @@
-```plain
-POST /assets
-        │
-        ▼
-    Asset PENDING
-        │
-        │
-POST /assets/{asset_id}/uploads
-        │
-        ├── создаётся upload_id
-        ├── строится storage_key
-        ├── выдаётся presigned PUT URL
-        └── запускается Temporal Workflow
-                │
-                │ WAITING_FOR_UPLOAD
-                │
-                ▼
-            PUT → S3
-                │
-                ▼
-POST /assets/{asset_id}/uploads/{upload_id}/complete
-                │
-                └── signal Workflow
-                        │
-                        ▼
-                  inspect file
-                        │
-                  determine type
-                        │
-                 extract metadata
-                        │
-                create AssetVersion
-                        │
-              create derivatives
-                        │
-                  finalize Asset
-                        │
-                        ▼
-                  Asset READY
-                  current_version → N
+# TIU Media Hub — бэкенд DAM
+
+FastAPI · PostgreSQL · MinIO + nginx CDN · RabbitMQ (taskiq) · Qdrant · Infinity (CLIP) · Keycloak.
+
+## Запуск
+
+```bash
+cp .env.example .env
+docker compose up -d --build     # весь стек; первый старт Infinity качает модели (~1 ГБ)
 ```
 
+| Сервис | Адрес |
+|---|---|
+| API (OpenAPI) | http://localhost:8000/docs |
+| Keycloak | http://localhost:8081 (admin/admin) |
+| CDN | http://localhost:8090 |
+| MinIO console | http://localhost:9001 |
+| RabbitMQ | http://localhost:15672 |
 
-```plain
-POST /assets
-    ↓
-Asset(PENDING)
-    ↓
-POST /assets/{id}/upload
-    ↓
-S3 upload
-    ↓
-start workflow
-    ↓
-Workflow
-    ├── validate file
-    ├── extract metadata
-    ├── calculate checksum
-    ├── determine type
-    ├── create AssetVersion
-    ├── generate thumbnail
-    ├── generate preview
-    ├── generate watermark
-    └── finalize Asset
-    ↓
-Asset(READY)
-Version(READY)
-current_version = version
-```
-Архитектура аутентификации и авторизации: [документация](docs/Архитектура/authentication_and_authorization.md).
-Локальное окружение и настройка realm: [Keycloak setup](docs/Настройка%20окружения/keycloak_setup.md).
+Пользователи realm (dev): `ivanov/ivanov`, `petrova/petrova`, `admin/admin` (роль admin).
+Сервисный клиент: `tiu-media-hub-service` / `dev-service-secret` (роль `assets:read`).
+
+Проверка стека: `uv run python -m tests.e2e.smoke`.
+
+## Устройство
+
+- `src/api` — HTTP: `/api/user/v1`, `/api/admin/v1`, `/api/client/v1`
+- `src/core` — инфраструктура: auth DTO, Keycloak, БД, S3, CDN, Qdrant, Infinity, RabbitMQ
+- `src/modules` — users, collections, media (загрузки и целостность), assets (версии, лицензии), tags, processing, search
+- `src/worker` — taskiq: очереди `processing` (CPU) и `indexing` (эмбеддинги), планировщик обслуживания
+
+Загрузка: SHA-256 считается в браузере, входит в подпись presigned URL (хранилище отклоняет подмену),
+сверяется при подтверждении и повторно при обработке. Админ-эндпоинт проверяет целостность всего хранилища.

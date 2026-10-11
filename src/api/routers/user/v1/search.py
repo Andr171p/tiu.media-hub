@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from src.api.dependencies import CdnDep, CurrentUser, DBSession, SearchDep
-from src.api.presenters import present_assets
+from src.api.dependencies import CurrentUser, DBSession, SearchDep
+from src.api.presenters import PresenterDep
 from src.modules import collections
 from src.modules.search import SearchDTO, SearchResponse, build_scope
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/search", tags=["Search"])
 )
 async def search_assets(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     search: SearchDep,
     user: CurrentUser,
     dto: SearchDTO,
@@ -27,7 +27,7 @@ async def search_assets(
     items, has_more = await search.search(db, dto, scope)
 
     return SearchResponse(
-        items=await present_assets(db, cdn, items, user=user),
+        items=await presenter.assets(db, items, user=user),
         limit=dto.limit,
         offset=dto.offset,
         has_more=has_more,

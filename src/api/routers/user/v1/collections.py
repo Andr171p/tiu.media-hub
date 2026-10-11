@@ -2,8 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from src.api.dependencies import CdnDep, CollectionAccessDep, CurrentUser, DBSession
-from src.api.presenters import present_collection, present_collections
+from src.api.dependencies import CollectionAccessDep, CurrentUser, DBSession
+from src.api.presenters import PresenterDep
 from src.core.common.schemas import Page
 from src.modules import collections
 from src.modules.collections import (
@@ -22,30 +22,32 @@ router = APIRouter(prefix="/collections", tags=["Collections"])
 @router.get("", summary="Доступные коллекции")
 async def list_collections(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     filters: Annotated[CollectionFilters, Query()],
 ) -> Page[CollectionResponse]:
     accesses, total = await collections.list_collections(db, user, filters)
-    items = await present_collections(db, cdn, accesses)
+    items = await presenter.collections(db, accesses)
     return Page(items=items, total=total, limit=filters.limit, offset=filters.offset)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Создать коллекцию")
 async def create_collection(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     dto: CreateCollectionDTO,
 ) -> CollectionResponse:
     access = await collections.create_collection(db, user, dto)
     await db.commit()
-    return await present_collection(db, cdn, access)
+    return await presenter.collection(db, access)
 
 
 @router.get("/{collection_id}", summary="Получить коллекцию")
-async def get_collection(db: DBSession, cdn: CdnDep, access: CollectionAccessDep) -> CollectionResponse:
-    return await present_collection(db, cdn, access)
+async def get_collection(
+    db: DBSession, presenter: PresenterDep, access: CollectionAccessDep
+) -> CollectionResponse:
+    return await presenter.collection(db, access)
 
 
 @router.patch(
@@ -55,13 +57,13 @@ async def get_collection(db: DBSession, cdn: CdnDep, access: CollectionAccessDep
 )
 async def update_collection(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     access: CollectionAccessDep,
     dto: UpdateCollectionDTO,
 ) -> CollectionResponse:
     await collections.update_collection(access, dto)
     await db.commit()
-    return await present_collection(db, cdn, access)
+    return await presenter.collection(db, access)
 
 
 @router.put(
@@ -74,7 +76,7 @@ async def update_collection(
 )
 async def update_settings(
     db: DBSession,
-    cdn: CdnDep,
+    presenter: PresenterDep,
     user: CurrentUser,
     access: CollectionAccessDep,
     settings: CollectionSettings,
@@ -84,7 +86,7 @@ async def update_settings(
 
     if watermark_changed:
         await rerender_collection_previews.kiq(str(access.collection.id))
-    return await present_collection(db, cdn, access)
+    return await presenter.collection(db, access)
 
 
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить коллекцию")

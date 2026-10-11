@@ -60,6 +60,10 @@ class CollectionResponse(Schema):
     role: str = Field(description="Роль текущего пользователя: viewer, member, moderator, owner")
     permissions: list[Action] = Field(description="Разрешённые действия текущего пользователя")
     stats: CollectionStats = Field(default_factory=CollectionStats)
+    watermark_url: str | None = Field(
+        default=None,
+        description="Временная ссылка на изображение водяного знака (для превью в редакторе)",
+    )
 
 
 class AddMemberDTO(Schema):
