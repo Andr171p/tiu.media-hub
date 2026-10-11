@@ -54,7 +54,7 @@ class AssetSearchIndex:
     """
     Индекс активов в Qdrant: одна точка на актив (по текущей версии).
 
-    * ``image`` — эмбеддинг миниатюры (SigLIP): поиск по смыслу изображения текстом и похожих картинок;
+    * ``image`` — эмбеддинг миниатюры (CLIP): поиск по смыслу изображения текстом и похожих картинок;
     * ``text`` — BM25 по названию, описанию, тегам, метаданным и тексту документа (векторизует Qdrant).
 
     Права проверяются фильтром по коллекциям: видимость коллекций решает PostgreSQL в момент запроса,
@@ -71,9 +71,20 @@ class AssetSearchIndex:
     def _bm25(self, text: str) -> models.Document:
         return models.Document(text=text, model=BM25_MODEL, options={"language": self._config.bm25_language})
 
-    async def _create_collection(self, name: str, **params: object) -> bool:
+    async def _create_collection(self, name: str, vector: str, **params: object) -> bool:
+        """Создаёт коллекцию, если её нет. Существующая должна совпадать по размерности эмбеддинга."""
+
         if await self._client.collection_exists(name):
+            info = await self._client.get_collection(name)
+            vectors = info.config.params.vectors
+            size = vectors[vector].size if isinstance(vectors, dict) else None
+            if size != self._dimensions:
+                raise RuntimeError(
+                    f"Qdrant collection {name!r} has dimension {size}, model produces {self._dimensions}. "
+                    "Increase QDRANT_GENERATION and reindex.",
+                )
             return False
+
         try:
             await self._client.create_collection(name, **params)  # type: ignore[arg-type]
         except UnexpectedResponse as exc:
@@ -87,6 +98,7 @@ class AssetSearchIndex:
 
         if await self._create_collection(
             self._assets,
+            IMAGE_VECTOR,
             vectors_config={IMAGE_VECTOR: dense},
             sparse_vectors_config={TEXT_VECTOR: models.SparseVectorParams(modifier=models.Modifier.IDF)},
         ):
@@ -98,7 +110,7 @@ class AssetSearchIndex:
             for field in ("kind", "tags"):
                 await self._client.create_payload_index(self._assets, field, models.PayloadSchemaType.KEYWORD)
 
-        await self._create_collection(self._tags, vectors_config={TAG_VECTOR: dense})
+        await self._create_collection(self._tags, TAG_VECTOR, vectors_config={TAG_VECTOR: dense})
 
     # =============================================================================================
     # Запись
@@ -187,7 +199,7 @@ class AssetSearchIndex:
         limit: int,
         offset: int,
     ) -> list[Hit]:
-        """Гибридный поиск: смысл изображения (SigLIP) + совпадение слов (BM25), слияние RRF."""
+        """Гибридный поиск: смысл изображения (CLIP) + совпадение слов (BM25), слияние RRF."""
 
         if scope.is_empty:
             return []

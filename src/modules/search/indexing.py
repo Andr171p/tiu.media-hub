@@ -46,8 +46,11 @@ def build_search_text(asset: Asset, version: AssetVersion | None, tags: Sequence
     return "\n".join(part for part in parts if part)
 
 
-def _sigmoid(value: float) -> float:
-    return 1 / (1 + math.exp(-value))
+def _softmax(values: Sequence[float]) -> list[float]:
+    peak = max(values)
+    exponents = [math.exp(value - peak) for value in values]
+    total = sum(exponents)
+    return [value / total for value in exponents]
 
 
 class AssetIndexer:
@@ -104,11 +107,14 @@ class AssetIndexer:
         config = self._config
         candidates = await self._index.score_tags(image_vector, limit=_TAG_CANDIDATES)
 
+        if not candidates:
+            return
+
+        probabilities = _softmax([config.autotag_temperature * similarity for _, similarity in candidates])
         scored = [
             (tag_id, round(probability, 4))
-            for tag_id, similarity in candidates
-            if (probability := _sigmoid(config.autotag_logit_scale * similarity + config.autotag_logit_bias))
-            >= config.autotag_min_probability
+            for (tag_id, similarity), probability in zip(candidates, probabilities, strict=True)
+            if probability >= config.autotag_min_probability and similarity >= config.autotag_min_similarity
         ][: config.autotag_max_tags]
 
         await apply_auto_tags(session, asset_id, scored)

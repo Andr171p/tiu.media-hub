@@ -1,12 +1,14 @@
 services:
-  # Эмбеддинги SigLIP: текст и изображения в одном векторном пространстве (text-to-image поиск).
-  # Первый запуск скачивает модель (~1.5 ГБ) в volume, поэтому healthcheck ждёт долго.
+  # Эмбеддинги для text-to-image: изображения кодирует CLIP ViT-B/32, текст — мультиязычный энкодер,
+  # дистиллированный в то же векторное пространство (понимает русский). Обе модели — Apache-2.0.
+  # Первый запуск скачивает модели (~1 ГБ) в volume, поэтому healthcheck ждёт долго.
   infinity:
     image: michaelf34/infinity:0.0.77-cpu
     restart: unless-stopped
     command:
       - v2
-      - --model-id=${INFINITY_MODEL:-google/siglip-base-patch16-256-multilingual}
+      - --model-id=${INFINITY_IMAGE_MODEL:-openai/clip-vit-base-patch32}
+      - --model-id=${INFINITY_TEXT_MODEL:-sentence-transformers/clip-ViT-B-32-multilingual-v1}
       - --engine=torch
       - --port=7997
       - --batch-size=16

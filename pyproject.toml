@@ -123,6 +123,9 @@ max-branches = 30
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = [
+    "PLR2004",
+    "E501",
+    "PLR0915",
     "S101",
     "ARG001",
     "F401",

@@ -59,7 +59,8 @@ class InfinityClient:
 
         for start in range(0, len(inputs), self._config.batch_size):
             batch = list(inputs[start : start + self._config.batch_size])
-            payload = {"model": self._config.model, "input": batch, "modality": modality}
+            model = self._config.text_model if modality == "text" else self._config.image_model
+            payload = {"model": model, "input": batch, "modality": modality}
 
             try:
                 async with session.post("embeddings", json=payload) as response:

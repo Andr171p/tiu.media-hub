@@ -6,6 +6,8 @@
 Создаёт данные в dev-окружении (коллекция «Smoke …»), существующие данные не меняет.
 """
 
+from typing import Any
+
 import asyncio
 import base64
 import hashlib
@@ -15,7 +17,6 @@ import secrets
 import time
 from html.parser import HTMLParser
 from http import HTTPStatus
-from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import aiohttp
@@ -92,17 +93,16 @@ async def login(username: str, password: str) -> str:
 
 
 async def service_token() -> str:
-    async with aiohttp.ClientSession() as http:
-        async with http.post(
-            f"{REALM}/protocol/openid-connect/token",
-            data={
-                "grant_type": "client_credentials",
-                "client_id": "tiu-media-hub-service",
-                "client_secret": "dev-service-secret",
-            },
-        ) as response:
-            response.raise_for_status()
-            return (await response.json())["access_token"]
+    async with aiohttp.ClientSession() as http, http.post(
+        f"{REALM}/protocol/openid-connect/token",
+        data={
+            "grant_type": "client_credentials",
+            "client_id": "tiu-media-hub-service",
+            "client_secret": "dev-service-secret",
+        },
+    ) as response:
+        response.raise_for_status()
+        return (await response.json())["access_token"]
 
 
 class Api:
@@ -159,7 +159,7 @@ async def wait_ready(api: Api, asset_id: str, *, version: int, timeout: float = 
     raise AssertionError("Processing timed out")
 
 
-async def main() -> None:  # noqa: PLR0915
+async def main() -> None:
     ivanov_token, petrova_token = await login("ivanov", "ivanov"), await login("petrova", "petrova")
 
     async with aiohttp.ClientSession() as http:
