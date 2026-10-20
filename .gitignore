@@ -83,3 +83,9 @@ tei_cache
 hf_cache
 *.mp3
 backups
+# Локальные варианты окружения
+.env.*
+!.env.example
+
+# Модели лиц OpenCV (локальная разработка)
+.models/

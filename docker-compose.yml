@@ -1,10 +1,16 @@
 name: tiu-media-hub
 
+# Весь стек одной командой: docker compose up -d --build
+# Режим моделей задаёт COMPOSE_PROFILES в .env: cpu — разработка, gpu — сервер (CUDA + Ollama).
 include:
-  - docker/minio.docker-compose.yml
-  - docker/keycloak.docker-compose.yml
-  - docker/temporal.docker-compose.yml
+  - docker/postgres.yml
+  - docker/rabbitmq.yml
+  - docker/storage.yml
+  - docker/keycloak.yml
+  - docker/qdrant.yml
+  - docker/ai.yml
+  - docker/app.yml
 
 networks:
   default:
-    name: tiu-media-hub-network
+    name: tiu-media-hub

@@ -1,0 +1,35 @@
+services:
+  # Identity: пользователи, вход, токены. Права на коллекции хранит бэкенд, не Keycloak.
+  # Realm tiu-media-hub импортируется при первом старте (существующий realm импорт пропускает)
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.7.0}
+    restart: unless-stopped
+    command:
+      - start-dev
+      - --http-port=8080
+      - --http-management-port=9000
+      # Issuer токенов одинаков для браузера и бэкенда в Docker
+      - --hostname=${KEYCLOAK_PUBLIC_URL:-http://localhost:8081}
+      - --hostname-backchannel-dynamic=true
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
+      KC_HEALTH_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${KEYCLOAK_PORT:-8081}:8080"
+    volumes:
+      - ../keycloak/realm:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s

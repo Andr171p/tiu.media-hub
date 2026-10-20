@@ -1,0 +1,15 @@
+.git
+.venv
+.idea
+.vscode
+.env
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.models
+docs
+tests
+docker
+keycloak
+legacy

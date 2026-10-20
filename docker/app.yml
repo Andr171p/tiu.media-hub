@@ -1,0 +1,96 @@
+# Приложение: один образ, разные команды. Настройки — из .env, адреса сервисов — внутри сети Docker.
+x-app: &app
+  build:
+    context: ..
+  image: tiu-media-hub:local
+  restart: unless-stopped
+  env_file: ../.env
+  environment:
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    RABBIT_HOST: rabbitmq
+    RABBIT_PORT: "5672"
+    QDRANT_URL: http://qdrant:6333
+    INFINITY_URL: http://infinity:7997
+    WHISPER_URL: http://whisper:9000
+    S3_ENDPOINT_URL: http://rustfs:9000
+    KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/tiu-media-hub/protocol/openid-connect/certs
+    FACES_MODELS_DIR: /app/models
+
+x-infra: &infra
+  postgres:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  qdrant:
+    condition: service_healthy
+  storage-init:
+    condition: service_completed_successfully
+  migrate:
+    condition: service_completed_successfully
+
+services:
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      <<: *infra
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Доставка доменных событий из outbox в очереди задач
+  relay:
+    <<: *app
+    command: ["python", "-m", "src.infra.outbox.relay"]
+    depends_on: *infra
+
+  # CPU: превью, прокси-видео, редактор, обслуживание. Процессы × задачи в каждом
+  worker-media:
+    <<: *app
+    command:
+      - taskiq
+      - worker
+      - src.infra.broker.media_tasks:media_broker
+      - --workers=${MEDIA_WORKERS:-2}
+      - --max-async-tasks=${MEDIA_MAX_ASYNC_TASKS:-2}
+    depends_on: *infra
+
+  # Модели: CLIP, лица, описание и теги, речь. Ожидание сети, а не CPU — больше задач на процесс
+  worker-ai:
+    <<: *app
+    command:
+      - taskiq
+      - worker
+      - src.infra.broker.ai_tasks:ai_broker
+      - --workers=${AI_WORKERS:-1}
+      - --max-async-tasks=${AI_MAX_ASYNC_TASKS:-8}
+    depends_on:
+      <<: *infra
+      infinity:
+        condition: service_healthy
+        required: false
+      infinity-gpu:
+        condition: service_healthy
+        required: false
+
+  # Периодические задачи: строго один экземпляр
+  scheduler:
+    <<: *app
+    command: ["taskiq", "scheduler", "src.infra.broker.scheduler:scheduler"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy

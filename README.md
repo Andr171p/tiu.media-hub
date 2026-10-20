@@ -1,71 +1,24 @@
-```plain
-POST /assets
-        │
-        ▼
-    Asset PENDING
-        │
-        │
-POST /assets/{asset_id}/uploads
-        │
-        ├── создаётся upload_id
-        ├── строится storage_key
-        ├── выдаётся presigned PUT URL
-        └── запускается Temporal Workflow
-                │
-                │ WAITING_FOR_UPLOAD
-                │
-                ▼
-            PUT → S3
-                │
-                ▼
-POST /assets/{asset_id}/uploads/{upload_id}/complete
-                │
-                └── signal Workflow
-                        │
-                        ▼
-                  inspect file
-                        │
-                  determine type
-                        │
-                 extract metadata
-                        │
-                create AssetVersion
-                        │
-              create derivatives
-                        │
-                  finalize Asset
-                        │
-                        ▼
-                  Asset READY
-                  current_version → N
+# TIU Media Hub — бэкенд DAM ТИУ
+
+Коллекции и права, версии, ИИ-описания и теги, умный поиск (естественный язык, по фото, по селфи, по речи),
+распознавание людей на фото и видео, контент-порталы, серверный редактор изображений, лицензии,
+комментарии с отметками областей и таймкодов, прокси-версии для видео.
+
+FastAPI + [DDF](https://github.com/Andr171p/py-ddd-framework) · PostgreSQL · RustFS + nginx CDN ·
+RabbitMQ (TaskIQ) · Qdrant · Infinity (CLIP) · OpenCV (лица) · Whisper · Keycloak · VLM (AITunnel / Ollama).
+
+## Запуск
+
+```bash
+cp .env.example .env     # VISION_API_KEY — ключ AITunnel
+docker compose up -d --build
 ```
 
+API: http://localhost:8000/docs · пользователи: `ivanov/ivanov`, `petrova/petrova`, `admin/admin`.
 
-```plain
-POST /assets
-    ↓
-Asset(PENDING)
-    ↓
-POST /assets/{id}/upload
-    ↓
-S3 upload
-    ↓
-start workflow
-    ↓
-Workflow
-    ├── validate file
-    ├── extract metadata
-    ├── calculate checksum
-    ├── determine type
-    ├── create AssetVersion
-    ├── generate thumbnail
-    ├── generate preview
-    ├── generate watermark
-    └── finalize Asset
-    ↓
-Asset(READY)
-Version(READY)
-current_version = version
-```
-Архитектура аутентификации и авторизации: [документация](docs/Архитектура/authentication_and_authorization.md).
-Локальное окружение и настройка realm: [Keycloak setup](docs/Настройка%20окружения/keycloak_setup.md).
+GPU-сервер: `COMPOSE_PROFILES=gpu` в `.env` — см. [деплой](docs/operations/deploy.md).
+
+## Документация
+
+[docs/README.md](docs/README.md): архитектура, доменная модель, доступ, медиа, поиск, решения,
+API для фронта, локальный запуск и деплой.
