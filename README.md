@@ -1,33 +1,24 @@
-# TIU Media Hub — бэкенд DAM
+# TIU Media Hub — бэкенд DAM ТИУ
 
-FastAPI · PostgreSQL · MinIO + nginx CDN · RabbitMQ (taskiq) · Qdrant · Infinity (CLIP) · Keycloak.
+Коллекции и права, версии, ИИ-описания и теги, умный поиск (естественный язык, по фото, по селфи, по речи),
+распознавание людей на фото и видео, контент-порталы, серверный редактор изображений, лицензии,
+комментарии с отметками областей и таймкодов, прокси-версии для видео.
+
+FastAPI + [DDF](https://github.com/Andr171p/py-ddd-framework) · PostgreSQL · RustFS + nginx CDN ·
+RabbitMQ (TaskIQ) · Qdrant · Infinity (CLIP) · OpenCV (лица) · Whisper · Keycloak · VLM (AITunnel / Ollama).
 
 ## Запуск
 
 ```bash
-cp .env.example .env
-docker compose up -d --build     # весь стек; первый старт Infinity качает модели (~1 ГБ)
+cp .env.example .env     # VISION_API_KEY — ключ AITunnel
+docker compose up -d --build
 ```
 
-| Сервис | Адрес |
-|---|---|
-| API (OpenAPI) | http://localhost:8000/docs |
-| Keycloak | http://localhost:8081 (admin/admin) |
-| CDN | http://localhost:8090 |
-| MinIO console | http://localhost:9001 |
-| RabbitMQ | http://localhost:15672 |
+API: http://localhost:8000/docs · пользователи: `ivanov/ivanov`, `petrova/petrova`, `admin/admin`.
 
-Пользователи realm (dev): `ivanov/ivanov`, `petrova/petrova`, `admin/admin` (роль admin).
-Сервисный клиент: `tiu-media-hub-service` / `dev-service-secret` (роль `assets:read`).
+GPU-сервер: `COMPOSE_PROFILES=gpu` в `.env` — см. [деплой](docs/operations/deploy.md).
 
-Проверка стека: `uv run python -m tests.e2e.smoke`.
+## Документация
 
-## Устройство
-
-- `src/api` — HTTP: `/api/user/v1`, `/api/admin/v1`, `/api/client/v1`
-- `src/core` — инфраструктура: auth DTO, Keycloak, БД, S3, CDN, Qdrant, Infinity, RabbitMQ
-- `src/modules` — users, collections, media (загрузки и целостность), assets (версии, лицензии), tags, processing, search
-- `src/worker` — taskiq: очереди `processing` (CPU) и `indexing` (эмбеддинги), планировщик обслуживания
-
-Загрузка: SHA-256 считается в браузере, входит в подпись presigned URL (хранилище отклоняет подмену),
-сверяется при подтверждении и повторно при обработке. Админ-эндпоинт проверяет целостность всего хранилища.
+[docs/README.md](docs/README.md): архитектура, доменная модель, доступ, медиа, поиск, решения,
+API для фронта, локальный запуск и деплой.

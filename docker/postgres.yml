@@ -1,0 +1,24 @@
+services:
+  # Одна СУБД для приложения и Keycloak (отдельные базы, init-скрипт создаёт базу keycloak)
+  postgres:
+    image: postgres:18.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME:-dam}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dam}
+      POSTGRES_DB: ${POSTGRES_DB:-dam}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # Начиная с PostgreSQL 18 PGDATA лежит в /var/lib/postgresql/<major>/docker
+      - db_data:/var/lib/postgresql
+      - ./postgres/init-keycloak.sh:/docker-entrypoint-initdb.d/init-keycloak.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  db_data:

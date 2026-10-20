@@ -1,69 +1,84 @@
 from typing import Annotated
 
+from ddf.infra.cache import InMemoryCache
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.core.auth import (
-    ASSETS_READ_ROLE,
+from src.application.auth import (
+    SERVICE_READ_ROLE,
     Auth,
-    AuthClient,
     AuthType,
     AuthUser,
     PermissionDeniedError,
     UnauthorizedError,
 )
-from src.core.keycloak import KeycloakClient
+from src.application.users import sync_profile
+from src.infra.auth import KeycloakAuthenticator
+from src.infra.database.repositories import SqlAlchemyUserRepository
 
-bearer_scheme = HTTPBearer(auto_error=False, description="Access-токен Keycloak")
+_PROFILE_SYNC_TTL = 15 * 60
+
+bearer_scheme = HTTPBearer(auto_error=False, description="Access token Keycloak")
 
 
-async def get_current_auth(
+async def _sync_profile(request: Request, auth: AuthUser) -> None:
+    """Профиль из токена сохраняется не чаще раза в 15 минут на процесс."""
+
+    cache: InMemoryCache[bool] = request.app.state.profile_cache
+    key = f"profile:{auth.user.model_dump_json()}"
+
+    if await cache.get(key):
+        return
+
+    async with request.app.state.session_factory() as session:
+        await sync_profile(auth, user_repository=SqlAlchemyUserRepository(session), uow=session)
+
+    await cache.set(key, True, ttl=_PROFILE_SYNC_TTL)
+
+
+async def get_optional_auth(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> Auth:
+) -> Auth | None:
     if credentials is None or not credentials.credentials:
-        raise UnauthorizedError("Missing or invalid credentials.")
+        return None
 
-    keycloak: KeycloakClient = request.app.state.keycloak_client
-    return await keycloak.verify_token(credentials.credentials)
+    authenticator: KeycloakAuthenticator = request.app.state.authenticator
+    auth = await authenticator.authenticate(credentials.credentials)
+
+    if isinstance(auth, AuthUser):
+        await _sync_profile(request, auth)
+
+    return auth
+
+
+OptionalAuth = Annotated[Auth | None, Depends(get_optional_auth)]
+
+
+def get_current_auth(auth: OptionalAuth) -> Auth:
+    if auth is None:
+        raise UnauthorizedError("Missing credentials.")
+    return auth
 
 
 CurrentAuth = Annotated[Auth, Depends(get_current_auth)]
 
 
 def get_current_user(auth: CurrentAuth) -> AuthUser:
-    if auth.type is not AuthType.USER or auth.user is None:
+    if not isinstance(auth, AuthUser):
         raise PermissionDeniedError("User authentication required.")
-
-    return AuthUser.model_validate(auth, from_attributes=True)
+    return auth
 
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
 
-def get_current_admin(user: CurrentUser) -> AuthUser:
-    if not user.is_admin:
-        raise PermissionDeniedError("Administrator role required.")
-
-    return user
-
-
-CurrentAdmin = Annotated[AuthUser, Depends(get_current_admin)]
+def get_current_service(auth: CurrentAuth) -> Auth:
+    if auth.type is not AuthType.SERVICE or SERVICE_READ_ROLE not in auth.roles:
+        raise PermissionDeniedError(f"Service with role {SERVICE_READ_ROLE!r} required.")
+    return auth
 
 
-def get_current_client(auth: CurrentAuth) -> AuthClient:
-    """Доверенный сервис (Client Credentials) с правом чтения DAM."""
+CurrentService = Annotated[Auth, Depends(get_current_service)]
 
-    if auth.type is not AuthType.CLIENT or auth.client is None:
-        raise PermissionDeniedError("Client authentication required.")
-
-    client = AuthClient.model_validate(auth, from_attributes=True)
-    if not client.has_role(ASSETS_READ_ROLE):
-        raise PermissionDeniedError(f"Client role {ASSETS_READ_ROLE!r} required.")
-
-    return client
-
-
-CurrentClient = Annotated[AuthClient, Depends(get_current_client)]
-
-__all__ = ["CurrentAdmin", "CurrentAuth", "CurrentClient", "CurrentUser"]
+__all__ = ["CurrentAuth", "CurrentService", "CurrentUser", "OptionalAuth"]

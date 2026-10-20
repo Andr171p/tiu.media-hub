@@ -1,56 +1,64 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from ddf.infra.cache import InMemoryCache
+from ddf.infra.database.sqlalchemy import PostgresConfig
+from ddf.infra.integrations.keycloak import KeycloakConfig
 from fastapi import FastAPI
 
-from src.core.cdn import CdnClient, CdnConfig
-from src.core.database import PostgresConfig, create_engine, create_session_factory
-from src.core.infinity import InfinityClient, InfinityConfig
-from src.core.keycloak import KeycloakClient, KeycloakConfig
-from src.core.qdrant import QdrantConfig, create_qdrant_client
-from src.core.s3 import S3Client, S3Config
-from src.modules.media import UploadConfig
-from src.modules.search import AssetSearch, AssetSearchIndex, SearchConfig
-from src.worker.brokers import indexing_broker, processing_broker
+from src.infra.ai.infinity import InfinityClipEmbedder, InfinityConfig
+from src.infra.auth import ClientsConfig, KeycloakAuthenticator
+from src.infra.broker.ai_tasks import ai_broker
+from src.infra.broker.media_tasks import TaskiqEditQueue, media_broker
+from src.infra.database.session import create_engine, create_session_factory
+from src.infra.media.faces import FacesConfig, OpenCvFaceAnalyzer
+from src.infra.qdrant import QdrantConfig, QdrantFaceIndex, QdrantVisualIndex, create_qdrant_client
+from src.infra.security import HmacPortalSecrets, PortalSecretsConfig
+from src.infra.storage.cdn import SignedCdnUrls
+from src.infra.storage.config import CdnConfig, StorageConfig
+from src.infra.storage.s3 import S3FileStorage
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Composition root API: создаёт долгоживущие клиенты и закрывает их при остановке."""
+    """Composition root API: долгоживущие клиенты создаются при старте и закрываются при остановке."""
 
     engine = create_engine(PostgresConfig())
-    keycloak = KeycloakClient(KeycloakConfig())  # type: ignore[call-arg]
-
-    s3 = S3Client(S3Config())  # type: ignore[call-arg]
-    await s3.connect()
-
-    infinity_config = InfinityConfig()
-    embedder = InfinityClient(infinity_config)
+    storage_config = StorageConfig()
+    authenticator = KeycloakAuthenticator(KeycloakConfig(), ClientsConfig())  # type: ignore[call-arg]
 
     qdrant_config = QdrantConfig()
     qdrant = create_qdrant_client(qdrant_config)
-    index = AssetSearchIndex(qdrant, qdrant_config, dimensions=infinity_config.dimensions)
-    await index.ensure_collections()
+    visual_index = QdrantVisualIndex(qdrant, qdrant_config)
+    face_index = QdrantFaceIndex(qdrant, qdrant_config)
+    await visual_index.ensure_collection()
+    await face_index.ensure_collection()
 
-    await processing_broker.startup()
-    await indexing_broker.startup()
+    embedder = InfinityClipEmbedder(InfinityConfig())
+    await media_broker.startup()
+    await ai_broker.startup()
 
     app.state.session_factory = create_session_factory(engine)
-    app.state.keycloak_client = keycloak
-    app.state.s3 = s3
-    app.state.cdn = CdnClient(CdnConfig())  # type: ignore[call-arg]
-    app.state.search = AssetSearch(index, embedder, SearchConfig())
-    app.state.upload_config = UploadConfig()
+    app.state.authenticator = authenticator
+    app.state.profile_cache = InMemoryCache[bool]()
+    app.state.originals = S3FileStorage(storage_config, storage_config.originals_bucket)
+    app.state.renditions = S3FileStorage(storage_config, storage_config.renditions_bucket)
+    app.state.media_urls = SignedCdnUrls(CdnConfig())
+    app.state.embedder = embedder
+    app.state.visual_index = visual_index
+    app.state.face_index = face_index
+    app.state.face_analyzer = OpenCvFaceAnalyzer(FacesConfig())
+    app.state.portal_secrets = HmacPortalSecrets(PortalSecretsConfig())
+    app.state.edit_queue = TaskiqEditQueue()
 
     try:
         yield
     finally:
-        await indexing_broker.shutdown()
-        await processing_broker.shutdown()
-        await qdrant.close()
+        await ai_broker.shutdown()
+        await media_broker.shutdown()
         await embedder.close()
-        await s3.close()
-        await keycloak.close()
+        await qdrant.close()
+        await authenticator.close()
         await engine.dispose()
 
 

@@ -1,0 +1,111 @@
+# Модели. Профиль выбирается в .env: COMPOSE_PROFILES=cpu (разработка) или gpu (сервер с NVIDIA).
+# У CPU- и GPU-вариантов одинаковое сетевое имя, поэтому приложение не знает, где работают модели.
+
+x-infinity: &infinity
+  restart: unless-stopped
+  command:
+    - v2
+    - --model-id=${INFINITY_IMAGE_MODEL:-openai/clip-vit-base-patch32}
+    - --model-id=${INFINITY_TEXT_MODEL:-sentence-transformers/clip-ViT-B-32-multilingual-v1}
+    - --engine=torch
+    - --port=7997
+    - --batch-size=16
+  environment:
+    HF_HOME: /app/.cache
+  ports:
+    - "${INFINITY_PORT:-7997}:7997"
+  volumes:
+    - infinity_cache:/app/.cache
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:7997/health')\""]
+    interval: 10s
+    timeout: 5s
+    retries: 60
+    start_period: 120s
+
+x-whisper: &whisper
+  restart: unless-stopped
+  environment:
+    ASR_ENGINE: faster_whisper
+    ASR_MODEL: ${WHISPER_MODEL:-base}
+    ASR_MODEL_PATH: /data/whisper
+  ports:
+    - "${WHISPER_PORT:-9010}:9000"
+  volumes:
+    - whisper_cache:/data/whisper
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  # CLIP: изображения и текст в одном пространстве (text-to-image, image-to-image)
+  infinity:
+    <<: *infinity
+    image: michaelf34/infinity:0.0.77-cpu
+    profiles: [cpu]
+
+  infinity-gpu:
+    <<: [*infinity, *gpu]
+    image: michaelf34/infinity:0.0.77
+    profiles: [gpu]
+    networks:
+      default:
+        aliases: [infinity]
+
+  # Расшифровка речи (faster-whisper)
+  whisper:
+    <<: *whisper
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0
+    profiles: [cpu]
+
+  whisper-gpu:
+    <<: [*whisper, *gpu]
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0-gpu
+    profiles: [gpu]
+    environment:
+      ASR_ENGINE: faster_whisper
+      ASR_MODEL: ${WHISPER_MODEL:-small}
+      ASR_MODEL_PATH: /data/whisper
+    networks:
+      default:
+        aliases: [whisper]
+
+  # Локальная VLM для описаний и тегов (на CPU слишком медленно: в разработке — AITunnel)
+  ollama:
+    <<: *gpu
+    image: ollama/ollama:${OLLAMA_VERSION:-0.35.1}
+    restart: unless-stopped
+    profiles: [gpu]
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Скачивает модель при первом запуске (повторно — мгновенно)
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.35.1}
+    profiles: [gpu]
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "${OLLAMA_VISION_MODEL:-qwen3-vl:4b}"]
+
+volumes:
+  infinity_cache:
+  whisper_cache:
+  ollama_models:

@@ -1,96 +1,117 @@
-from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 
-from src.api.dependencies import CollectionAccessDep, CurrentUser, DBSession
-from src.api.presenters import PresenterDep
-from src.core.common.schemas import Page
-from src.modules import collections
-from src.modules.collections import (
-    CollectionFilters,
+from src.api.dependencies.auth import CurrentUser
+from src.api.dependencies.db import UnitOfWorkDep
+from src.api.dependencies.repositories import CollectionRepositoryDep, MemberRepositoryDep, UserRepositoryDep
+from src.application.collections import usecases
+from src.application.collections.dtos import (
     CollectionResponse,
-    CollectionSettings,
     CreateCollectionDTO,
+    MemberDTO,
+    MemberResponse,
     UpdateCollectionDTO,
 )
-from src.worker.indexing import remove_collection
-from src.worker.processing import rerender_collection_previews
 
-router = APIRouter(prefix="/collections", tags=["Collections"])
-
-
-@router.get("", summary="Доступные коллекции")
-async def list_collections(
-    db: DBSession,
-    presenter: PresenterDep,
-    user: CurrentUser,
-    filters: Annotated[CollectionFilters, Query()],
-) -> Page[CollectionResponse]:
-    accesses, total = await collections.list_collections(db, user, filters)
-    items = await presenter.collections(db, accesses)
-    return Page(items=items, total=total, limit=filters.limit, offset=filters.offset)
+router = APIRouter(prefix="/collections", tags=["Коллекции"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Создать коллекцию")
 async def create_collection(
-    db: DBSession,
-    presenter: PresenterDep,
-    user: CurrentUser,
-    dto: CreateCollectionDTO,
+    dto: CreateCollectionDTO, auth: CurrentUser, collections: CollectionRepositoryDep, uow: UnitOfWorkDep
 ) -> CollectionResponse:
-    access = await collections.create_collection(db, user, dto)
-    await db.commit()
-    return await presenter.collection(db, access)
+    return await usecases.create_collection(dto, auth, collection_repository=collections, uow=uow)
 
 
-@router.get("/{collection_id}", summary="Получить коллекцию")
+@router.get("", summary="Доступные коллекции")
+async def list_collections(
+    auth: CurrentUser, collections: CollectionRepositoryDep
+) -> list[CollectionResponse]:
+    return await usecases.list_collections(auth, collection_repository=collections)
+
+
+@router.get("/{collection_id}", summary="Коллекция")
 async def get_collection(
-    db: DBSession, presenter: PresenterDep, access: CollectionAccessDep
+    collection_id: UUID, auth: CurrentUser, collections: CollectionRepositoryDep
 ) -> CollectionResponse:
-    return await presenter.collection(db, access)
+    return await usecases.get_collection(collection_id, auth, collection_repository=collections)
 
 
-@router.patch(
-    "/{collection_id}",
-    summary="Обновить коллекцию",
-    description="Название и описание меняют модераторы, видимость — только владелец.",
-)
+@router.patch("/{collection_id}", summary="Изменить коллекцию", description="Право manage.")
 async def update_collection(
-    db: DBSession,
-    presenter: PresenterDep,
-    access: CollectionAccessDep,
+    collection_id: UUID,
     dto: UpdateCollectionDTO,
+    auth: CurrentUser,
+    collections: CollectionRepositoryDep,
+    uow: UnitOfWorkDep,
 ) -> CollectionResponse:
-    await collections.update_collection(access, dto)
-    await db.commit()
-    return await presenter.collection(db, access)
+    return await usecases.update_collection(
+        collection_id, dto, auth, collection_repository=collections, uow=uow
+    )
+
+
+@router.delete(
+    "/{collection_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить пустую коллекцию",
+    description="Только владелец. Активы нужно перенести или удалить из корзины.",
+)
+async def delete_collection(
+    collection_id: UUID, auth: CurrentUser, collections: CollectionRepositoryDep, uow: UnitOfWorkDep
+) -> None:
+    await usecases.delete_collection(collection_id, auth, collection_repository=collections, uow=uow)
+
+
+@router.get("/{collection_id}/members", summary="Участники")
+async def list_members(
+    collection_id: UUID,
+    auth: CurrentUser,
+    collections: CollectionRepositoryDep,
+    members: MemberRepositoryDep,
+    users: UserRepositoryDep,
+) -> list[MemberResponse]:
+    return await usecases.list_members(
+        collection_id,
+        auth,
+        collection_repository=collections,
+        member_repository=members,
+        user_repository=users,
+    )
 
 
 @router.put(
-    "/{collection_id}/settings",
-    summary="Настройки коллекции",
-    description=(
-        "Политика загрузки, схема кастомных метаданных, требования к лицензии и водяной знак. "
-        "При смене водяного знака превью перерисовываются в фоне."
-    ),
+    "/{collection_id}/members",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Добавить участника или сменить роль",
 )
-async def update_settings(
-    db: DBSession,
-    presenter: PresenterDep,
-    user: CurrentUser,
-    access: CollectionAccessDep,
-    settings: CollectionSettings,
-) -> CollectionResponse:
-    watermark_changed = await collections.update_settings(db, access, settings, user)
-    await db.commit()
-
-    if watermark_changed:
-        await rerender_collection_previews.kiq(str(access.collection.id))
-    return await presenter.collection(db, access)
+async def set_member(
+    collection_id: UUID,
+    dto: MemberDTO,
+    auth: CurrentUser,
+    collections: CollectionRepositoryDep,
+    members: MemberRepositoryDep,
+    uow: UnitOfWorkDep,
+) -> None:
+    await usecases.set_member(
+        collection_id, dto, auth, collection_repository=collections, member_repository=members, uow=uow
+    )
 
 
-@router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить коллекцию")
-async def delete_collection(db: DBSession, access: CollectionAccessDep) -> None:
-    await collections.delete_collection(access)
-    await db.commit()
-    await remove_collection.kiq(str(access.collection.id))
+@router.delete(
+    "/{collection_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить участника",
+    description="Менеджер удаляет любого, участник может выйти сам.",
+)
+async def remove_member(
+    collection_id: UUID,
+    user_id: UUID,
+    auth: CurrentUser,
+    collections: CollectionRepositoryDep,
+    members: MemberRepositoryDep,
+    uow: UnitOfWorkDep,
+) -> None:
+    await usecases.remove_member(
+        collection_id, user_id, auth, collection_repository=collections, member_repository=members, uow=uow
+    )

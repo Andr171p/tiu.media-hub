@@ -8,7 +8,10 @@
   "verifyEmail": false,
   "loginWithEmailAllowed": true,
   "internationalizationEnabled": true,
-  "supportedLocales": ["ru", "en"],
+  "supportedLocales": [
+    "ru",
+    "en"
+  ],
   "defaultLocale": "ru",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 7200,
@@ -17,11 +20,11 @@
       "tiu-media-hub-api": [
         {
           "name": "admin",
-          "description": "Администратор DAM: полный доступ ко всем коллекциям, словарь автотегов, обслуживание"
+          "description": "Глобальный администратор DAM: доступ ко всем коллекциям и порталам"
         },
         {
           "name": "assets:read",
-          "description": "Сервис: чтение всех коллекций и активов через /api/client"
+          "description": "Сервис: чтение любых активов через /api/service/v1"
         }
       ]
     }
@@ -40,13 +43,23 @@
       "serviceAccountsEnabled": false,
       "rootUrl": "http://localhost:5173",
       "baseUrl": "/",
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*"
       },
-      "defaultClientScopes": ["basic", "profile", "email", "roles", "web-origins"],
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "web-origins"
+      ],
       "fullScopeAllowed": false,
       "protocolMappers": [
         {
@@ -88,7 +101,43 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "defaultClientScopes": ["basic", "roles"],
+      "defaultClientScopes": [
+        "basic",
+        "roles"
+      ],
+      "fullScopeAllowed": false,
+      "protocolMappers": [
+        {
+          "name": "dam-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "tiu-media-hub-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "tiu-media-hub-dev",
+      "name": "TIU Media Hub Dev",
+      "description": "Только для разработки: password grant для curl и интеграционных тестов. Удалить в production",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "web-origins"
+      ],
       "fullScopeAllowed": false,
       "protocolMappers": [
         {
@@ -107,8 +156,25 @@
   ],
   "clientScopeMappings": {
     "tiu-media-hub-api": [
-      { "client": "tiu-media-hub-web", "roles": ["admin"] },
-      { "client": "tiu-media-hub-service", "roles": ["assets:read"] }
+      {
+        "client": "tiu-media-hub-web",
+        "roles": [
+          "admin"
+        ]
+      },
+      {
+        "client": "tiu-media-hub-service",
+        "roles": [
+          "assets:read"
+        ]
+      },
+      {
+        "client": "tiu-media-hub-dev",
+        "roles": [
+          "admin",
+          "assets:read"
+        ]
+      }
     ]
   },
   "users": [
@@ -119,8 +185,18 @@
       "lastName": "DAM",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
-      "clientRoles": { "tiu-media-hub-api": ["admin"] }
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "tiu-media-hub-api": [
+          "admin"
+        ]
+      }
     },
     {
       "username": "ivanov",
@@ -129,7 +205,13 @@
       "lastName": "Иванов",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "ivanov", "temporary": false }]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "ivanov",
+          "temporary": false
+        }
+      ]
     },
     {
       "username": "petrova",
@@ -138,13 +220,23 @@
       "lastName": "Петрова",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "petrova", "temporary": false }]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "petrova",
+          "temporary": false
+        }
+      ]
     },
     {
       "username": "service-account-tiu-media-hub-service",
       "enabled": true,
       "serviceAccountClientId": "tiu-media-hub-service",
-      "clientRoles": { "tiu-media-hub-api": ["assets:read"] }
+      "clientRoles": {
+        "tiu-media-hub-api": [
+          "assets:read"
+        ]
+      }
     }
   ]
 }

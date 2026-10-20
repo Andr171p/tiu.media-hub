@@ -1,0 +1,66 @@
+services:
+  # S3-совместимое хранилище. Наружу не публикуется в production: браузер ходит через nginx (cdn)
+  rustfs:
+    image: rustfs/rustfs:${RUSTFS_VERSION:-1.0.1}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dam}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-dam-dev-secret}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    ports:
+      - "${RUSTFS_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9000/health || curl -fs http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Бакеты: оригиналы закрыты (только presigned URL), производные читает анонимно только nginx внутри сети
+  storage-init:
+    image: ${MC_IMAGE:-pgsty/mc:RELEASE.2026-09-16T00-00-00Z}
+    restart: "no"
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dam}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-dam-dev-secret}
+      S3_ORIGINALS_BUCKET: ${S3_ORIGINALS_BUCKET:-dam-originals}
+      S3_RENDITIONS_BUCKET: ${S3_RENDITIONS_BUCKET:-dam-renditions}
+    volumes:
+      - ./storage/init.sh:/init.sh:ro
+    entrypoint: ["sh", "/init.sh"]
+
+  # Локальный CDN: подписанные ссылки на превью/прокси с кешем и проброс presigned-запросов к хранилищу
+  cdn:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      CDN_SECRET: ${CDN_SECRET:-dev-cdn-secret}
+      S3_ORIGINALS_BUCKET: ${S3_ORIGINALS_BUCKET:-dam-originals}
+      S3_RENDITIONS_BUCKET: ${S3_RENDITIONS_BUCKET:-dam-renditions}
+      CORS_ORIGIN: ${CDN_CORS_ORIGIN:-*}
+      NGINX_ENVSUBST_FILTER: "^(CDN_|S3_|CORS_)"
+    ports:
+      - "${CDN_PORT:-8090}:80"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - cdn_cache:/var/cache/nginx
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  rustfs_data:
+  cdn_cache:

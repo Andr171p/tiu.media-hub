@@ -7,8 +7,9 @@
 .mypy_cache
 .ruff_cache
 .pytest_cache
+.models
 docs
 tests
 docker
 keycloak
-nginx
+legacy

@@ -1,23 +1,15 @@
 name: tiu-media-hub
 
-# Полный стек: docker compose up -d --build
-# Только инфраструктура (API и воркеры запускаются локально через uv):
-#   docker compose up -d postgres rabbitmq qdrant infinity minio minio-init cdn keycloak
+# Весь стек одной командой: docker compose up -d --build
+# Режим моделей задаёт COMPOSE_PROFILES в .env: cpu — разработка, gpu — сервер (CUDA + Ollama).
 include:
-  - path: docker/postgres.docker-compose.yml
-    env_file: .env
-  - path: docker/rabbitmq.docker-compose.yml
-    env_file: .env
-  - path: docker/qdrant.docker-compose.yml
-    env_file: .env
-  - path: docker/infinity.docker-compose.yml
-    env_file: .env
-  - path: docker/storage.docker-compose.yml
-    env_file: .env
-  - path: docker/keycloak.docker-compose.yml
-    env_file: .env
-  - path: docker/app.docker-compose.yml
-    env_file: .env
+  - docker/postgres.yml
+  - docker/rabbitmq.yml
+  - docker/storage.yml
+  - docker/keycloak.yml
+  - docker/qdrant.yml
+  - docker/ai.yml
+  - docker/app.yml
 
 networks:
   default:

@@ -1,34 +1,33 @@
 from typing import Annotated
 
+from uuid import UUID
+
 from fastapi import APIRouter, Query
 
-from src.api.dependencies import CurrentUser, DBSession
-from src.modules import users
-from src.modules.users import CurrentUserResponse, UserResponse
+from src.api.dependencies.auth import CurrentUser
+from src.api.dependencies.repositories import UserRepositoryDep
+from src.application.users import MeResponse, UserResponse, get_me, get_users, search_users
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter(tags=["Пользователи"])
+
+
+@router.get("/me", summary="Текущий пользователь")
+async def me(auth: CurrentUser) -> MeResponse:
+    return get_me(auth)
 
 
 @router.get(
-    "/me",
-    summary="Текущий пользователь",
-    description="Обновляет локальный профиль данными из токена.",
+    "/users",
+    summary="Поиск сотрудников",
+    description="По имени, логину или email (кто уже входил в систему).",
 )
-async def get_me(db: DBSession, auth: CurrentUser) -> CurrentUserResponse:
-    profile = await users.sync_profile(db, auth.user)
-    await db.commit()
-
-    return CurrentUserResponse(
-        **UserResponse.model_validate(profile).model_dump(),
-        roles=sorted(auth.user.roles),
-        is_admin=auth.is_admin,
-    )
-
-
-@router.get("", summary="Найти пользователей", description="Среди тех, кто хотя бы раз входил в DAM.")
-async def search_users(
-    db: DBSession,
+async def find_users(
     _: CurrentUser,
-    query: Annotated[str, Query(min_length=2, max_length=100)],
+    user_repository: UserRepositoryDep,
+    query: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    ids: Annotated[list[UUID] | None, Query(max_length=200)] = None,
 ) -> list[UserResponse]:
-    return [UserResponse.model_validate(user) for user in await users.search_users(db, query)]
+    if ids:
+        return await get_users(ids, user_repository=user_repository)
+
+    return await search_users(query or "", user_repository=user_repository)
